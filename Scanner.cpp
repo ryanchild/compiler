@@ -63,7 +63,7 @@ void Scanner::printErrors()
   for(vector<error>::iterator it(mErrors.begin()); it != mErrors.end(); ++it)
   {
     error err = *it;
-    cout << "line " << err.lineNum << ": " << err.msg << endl;
+    cout << "Line " << err.lineNum << ": " << err.msg << endl;
   }
 }
 
@@ -221,7 +221,7 @@ bool Scanner::scan(Token& tok)
         if(foundError)
         {
           ostringstream msg;
-          msg << "illegal string: " << oss.str() << endl;
+          msg << "illegal string \"" << oss.str() << "\"" << endl;
           error err = {mLineNumber, msg.str()};
           mErrors.push_back(err);
         }

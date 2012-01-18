@@ -1,4 +1,5 @@
-#include <string>
+#include <string.h>
+#include <errno.h>
 #include <iostream>
 
 #include "Scanner.h"
@@ -11,7 +12,7 @@ int main(int argc, char** argv)
   string filename;
   if(argc != 2)
   {
-    cout << "1 argument required" << endl << "sample usage: " << argv[0] << " <source file>" << endl;
+    cout << "usage: " << endl << argv[0] << " <source file>" << endl;
     return 1;
   }
   else
@@ -20,7 +21,7 @@ int main(int argc, char** argv)
   Scanner s(filename.c_str());
   if(!s.initialize())
   {
-    cout << "error initializing scanner.  are you sure the file exists?" << endl;
+    cout << "Error opening " << argv[1] << ": " << strerror(errno) << endl;
     return 1;
   }
 
@@ -34,7 +35,7 @@ int main(int argc, char** argv)
   if(ne > 0)
   {
     const char* plural = ne == 1 ? "" : "s";
-    cout << endl << ne << " fatal error" << plural << " found. aborting..." << endl;
+    cout << endl << ne << " fatal error" << plural << " found. Aborting..." << endl;
     s.printErrors();
   }
 
