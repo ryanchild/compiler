@@ -23,14 +23,12 @@ class Scanner
       LOWER,
       UPPER,
       UNDERSCORE,
-      SEMICOLON,
       FORWARDSLASH,
       ASTERISK,
       PLUS,
       MINUS,
       LT,
       GT,
-      SINGLEQUOTE,
       DOUBLEQUOTE,
       EQUALS,
       WHITESPACE,
@@ -48,6 +46,8 @@ class Scanner
       int lineNum;
       std::string msg;
     };
+
+    void addIllegalCharacterError(char c);
 
     FILE* mFile;
     int mLineNumber;

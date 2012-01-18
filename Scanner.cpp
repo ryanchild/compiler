@@ -56,6 +56,14 @@ void Scanner::printErrors()
   }
 }
 
+void Scanner::addIllegalCharacterError(char c)
+{
+  ostringstream msg;
+  msg << "unrecognized character: " << c << endl;
+  error err = {mLineNumber, msg.str()};
+  mErrors.push_back(err);
+}
+
 bool Scanner::scan(Token& tok)
 {
   int c = 0;
@@ -89,15 +97,22 @@ bool Scanner::scan(Token& tok)
       else
       {
         ungetc(c,mFile);
-        ungetc(c,mFile);
+        c = '/';
+        break;
       }
+    }
+    else if(cc == EXCLAMATION)
+    {
+      c = fgetc(mFile);
+      ungetc(c,mFile);
+      if(c == '=')
+        c = '!';
+      else
+        addIllegalCharacterError('!');
     }
     else if(cc == OTHER)
     {
-      ostringstream msg;
-      msg << "unrecognized character: " << (char)c << endl;
-      error err = {mLineNumber, msg.str()};
-      mErrors.push_back(err);
+      addIllegalCharacterError(c);
     }
     else
       break;
@@ -129,12 +144,7 @@ bool Scanner::scan(Token& tok)
 
     case EXCLAMATION:
       c = fgetc(mFile);
-      if(c != '=')
-      {
-        ungetc(c,mFile);
-        // TODO: throw error
-      }
-      else
+      if(c == '=')
         strit = mStrings.find("!=");
       break;
 
@@ -265,7 +275,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   OTHER,
   OTHER,
   OTHER,
-  SINGLEQUOTE,  // '
+  OTHER,        // '
   BRACKET,      // (
   BRACKET,      // )
   ASTERISK,     // *
@@ -285,7 +295,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   DIGIT,        // 8
   DIGIT,        // 9
   OTHER,
-  SEMICOLON,    // ;
+  OTHER,        // ;
   LT,           // <
   EQUALS,       // =
   GT,           // >

@@ -21,6 +21,8 @@ begin
     b = b - 1
   end if
 
+  a ! b
+
   // test loops
   for i=1 i<10
     a = a+1
