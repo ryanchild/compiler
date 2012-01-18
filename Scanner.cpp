@@ -260,11 +260,11 @@ const Scanner::charclass Scanner::charclasses[128] = {
   OTHER,
   OTHER,
   OTHER,
+  WHITESPACE,   // HTAB
+  WHITESPACE,   // LF
+  WHITESPACE,   // VTAB
   OTHER,
-  WHITESPACE,   // \n
-  OTHER,
-  OTHER,
-  OTHER,
+  WHITESPACE,   // CR
   OTHER,
   OTHER,
   OTHER,

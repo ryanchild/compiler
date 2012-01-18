@@ -4,7 +4,8 @@ integer function main(integer a)
 begin
   integer b
   b=a+1
-  c = "testing"
+  string c = "Hello world!?09;:.,.."
+  string s="invalid#@string"
   boolean bool=0
 
   // array of 10 floats
