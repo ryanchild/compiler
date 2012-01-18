@@ -11,6 +11,7 @@ class Scanner
     Scanner(const char* filename);
     ~Scanner();
 
+    bool initialize();
     bool scan(Token& tok);
     int getLineNumber() { return mLineNumber; }
     int numErrors() { return mErrors.size(); }
@@ -34,6 +35,7 @@ class Scanner
       WHITESPACE,
       BRACKET,
       EXCLAMATION,
+      LOGICALOP,
       OTHER
     };
     
@@ -50,6 +52,7 @@ class Scanner
     void addIllegalCharacterError(char c);
 
     FILE* mFile;
+    std::string mFilename;
     int mLineNumber;
     std::map<std::string, Token::tokentype> mStrings;
     std::vector<error> mErrors;

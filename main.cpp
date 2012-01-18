@@ -8,11 +8,26 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
-  Scanner s("test");
-  Token token;
-  while(s.scan(token))
+  string filename;
+  if(argc != 2)
   {
-    cout << "recognized token: '" << token << "' on line " << s.getLineNumber() << endl;
+    cout << "1 argument required" << endl << "sample usage: " << argv[0] << " <source file>" << endl;
+    return 1;
+  }
+  else
+    filename = argv[1];
+
+  Scanner s(filename.c_str());
+  if(!s.initialize())
+  {
+    cout << "error initializing scanner.  are you sure the file exists?" << endl;
+    return 1;
+  }
+
+  Token t;
+  while(s.scan(t))
+  {
+    cout << "recognized token: '" << t << "' on line " << s.getLineNumber() << endl;
   }
 
   int ne = s.numErrors();

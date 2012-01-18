@@ -10,7 +10,18 @@ using namespace std;
 
 Scanner::Scanner(const char* filename)
   :mFile(NULL)
+  ,mFilename(filename)
   ,mLineNumber(1)
+{
+}
+
+Scanner::~Scanner()
+{
+  if(mFile)
+    fclose(mFile);
+}
+
+bool Scanner::initialize()
 {
   // build string map
   mStrings["for"] = Token::FOR;
@@ -23,6 +34,8 @@ Scanner::Scanner(const char* filename)
   mStrings["boolean"] = Token::BOOLEAN;
   mStrings["float"] = Token::FLOAT;
   mStrings["string"] = Token::STRING;
+  mStrings["&"] = Token::AND;
+  mStrings["|"] = Token::NOT;
   mStrings["not"] = Token::NOT;
   mStrings["+"] = Token::ADDSUBTRACT;
   mStrings["-"] = Token::ADDSUBTRACT;
@@ -39,12 +52,8 @@ Scanner::Scanner(const char* filename)
   mStrings["!="] = Token::NOTEQUAL;
   mStrings["\""] = Token::QUOTE;
 
-  mFile = fopen(filename, "r");
-}
-
-Scanner::~Scanner()
-{
-  fclose(mFile);
+  mFile = fopen(mFilename.c_str(), "r");
+  return mFile != NULL;
 }
 
 void Scanner::printErrors()
@@ -128,6 +137,7 @@ bool Scanner::scan(Token& tok)
     case GT:
     case LT:
     case BRACKET:
+    case LOGICALOP:
       strit = mStrings.find((char*)&c);
       break;
 
@@ -274,7 +284,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   OTHER,
   OTHER,
   OTHER,
-  OTHER,
+  LOGICALOP,    // &
   OTHER,        // '
   BRACKET,      // (
   BRACKET,      // )
@@ -360,7 +370,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   LOWER,        // y
   LOWER,        // z
   OTHER,
-  OTHER,
+  LOGICALOP,    // |
   OTHER,
   OTHER,
   OTHER
