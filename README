@@ -1,2 +1,4 @@
 Author: Ryan Child
 Description: This is a really simple compiler I am writing for EECE 683, Compiler Theory, at the University of Cincinnati, Winter Quarter 2012.
+
+Language specification is in file project.pdf
