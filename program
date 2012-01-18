@@ -30,5 +30,10 @@ begin
     a = a+1
   end for
 
+  integer d
+  d = a & b
+  integer e = a | b
+  integer f = not b
+
   main=b
 end function
