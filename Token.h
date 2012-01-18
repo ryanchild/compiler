@@ -17,6 +17,8 @@ class Token
       NOTEQUAL,
       LT,
       GT,
+      LTE,
+      GTE,
       STRING,
       INTEGER,
       FLOAT,

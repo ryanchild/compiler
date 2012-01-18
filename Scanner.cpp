@@ -48,6 +48,8 @@ bool Scanner::initialize()
   mStrings[")"] = Token::CLOSEPAREN;
   mStrings["<"] = Token::LT;
   mStrings[">"] = Token::GT;
+  mStrings["<="] = Token::LTE;
+  mStrings[">="] = Token::GTE;
   mStrings["=="] = Token::EQUAL;
   mStrings["!="] = Token::NOTEQUAL;
   mStrings["\""] = Token::QUOTE;
@@ -75,172 +77,174 @@ void Scanner::addIllegalCharacterError(char c)
 
 bool Scanner::scan(Token& tok)
 {
-  int c = 0;
-  charclass cc;
-
-  while(true)
+  StringIt strit = mStrings.end();
+  while(strit == mStrings.end())
   {
-    c = fgetc(mFile);
-    cc = charclasses[c];
+    char c = fgetc(mFile);
+    charclass cc = charclasses[c];
     if(c == EOF)
       return false;
-    else if(cc == WHITESPACE)
+    switch(cc)
     {
-      while(cc == WHITESPACE)
-      {
-        if(c == '\n')
-          mLineNumber++;
-        c = fgetc(mFile);
-        cc = charclasses[c];
-      }
-      ungetc(c,mFile);
-    }
-    else if(cc == FORWARDSLASH)
-    {
-      c = fgetc(mFile);
-      if(c == '/')
-      {
-        while(fgetc(mFile) != '\n');
-        mLineNumber++;
-      }
-      else
-      {
+      case WHITESPACE:
+        while(cc == WHITESPACE)
+        {
+          if(c == '\n')
+            mLineNumber++;
+          c = fgetc(mFile);
+          cc = charclasses[c];
+        }
         ungetc(c,mFile);
-        c = '/';
+        break;
+
+      case FORWARDSLASH:
+        c = fgetc(mFile);
+        if(c == '/')
+        {
+          while(fgetc(mFile) != '\n');
+          mLineNumber++;
+        }
+        else
+        {
+          ungetc(c,mFile);
+          strit = mStrings.find("/");
+        }
+        break;
+
+      case MINUS:
+      case PLUS:
+      case ASTERISK:
+      case BRACKET:
+      case LOGICALOP:
+      {
+        ostringstream s;
+        s << (char)c;
+        strit = mStrings.find(s.str());
         break;
       }
-    }
-    else if(cc == EXCLAMATION)
-    {
-      c = fgetc(mFile);
-      ungetc(c,mFile);
-      if(c == '=')
-        c = '!';
-      else
-        addIllegalCharacterError('!');
-    }
-    else if(cc == OTHER)
-    {
-      addIllegalCharacterError(c);
-    }
-    else
-      break;
-  }
 
-  StringIt strit;
-  switch(cc)
-  {
-    case FORWARDSLASH:
-    case MINUS:
-    case PLUS:
-    case ASTERISK:
-    case GT:
-    case LT:
-    case BRACKET:
-    case LOGICALOP:
-      strit = mStrings.find((char*)&c);
-      break;
-
-    case EQUALS:
-      c = fgetc(mFile);
-      if(c == '=')
-        strit = mStrings.find("==");
-      else
+      case LT:
+      case GT:
+      case EQUALS:
       {
-        ungetc(c,mFile);
-        strit = mStrings.find("=");
-      }
-      break;
-
-    case EXCLAMATION:
-      c = fgetc(mFile);
-      if(c == '=')
-        strit = mStrings.find("!=");
-      break;
-
-    case DIGIT: 
-    {
-      ostringstream oss;
-      while(cc == DIGIT)
-      {
-        oss << (char)c;
+        ostringstream s;
+        s << (char)c;
         c = fgetc(mFile);
-        cc = charclasses[c];
-      }
-      ungetc(c,mFile);
-      strit = mStrings.find(oss.str());
-      if(strit == mStrings.end())
-      {
-        mStrings[oss.str()] = Token::INTEGER;
-        strit = mStrings.find(oss.str());
-      }
-      break;
-    }
-
-    case LOWER:
-    case UPPER:
-    {
-      ostringstream oss;
-      while(cc == LOWER || cc == UPPER || cc == UNDERSCORE || cc == DIGIT)
-      {
-        oss << (char)c;
-        c = fgetc(mFile);
-        cc = charclasses[c];
-      }
-      ungetc(c,mFile);
-      strit = mStrings.find(oss.str());
-      if(strit == mStrings.end())
-      {
-        mStrings[oss.str()] = Token::IDENTIFIER;
-        strit = mStrings.find(oss.str());
-      }
-      break;
-    }
-
-    case DOUBLEQUOTE:
-    {
-      ostringstream oss;
-      bool foundError = false;
-      c = fgetc(mFile);
-      cc = charclasses[c];
-      while(cc != DOUBLEQUOTE)
-      {
-        oss << (char)c;
-        if(cc != LOWER && cc != UPPER && cc != UNDERSCORE && cc != DIGIT
-            && c != ' ')
+        if(c == '=')
         {
-          foundError = true;
+          s << (char)c;
+          strit = mStrings.find(s.str());
         }
+        else
+        {
+          ungetc(c,mFile);
+          strit = mStrings.find(s.str());
+        }
+        break;
+      }
+
+      case EXCLAMATION:
         c = fgetc(mFile);
-        cc = charclasses[c];
-      }
-      if(foundError)
+        if(c != '=')
+        {
+          ungetc(c,mFile);
+          addIllegalCharacterError('!');
+        }
+        else
+          strit = mStrings.find("!=");
+        break;
+
+      case DIGIT: 
       {
-        ostringstream msg;
-        msg << "illegal string: " << oss.str() << endl;
-        error err = {mLineNumber, msg.str()};
-        mErrors.push_back(err);
-      }
-      else
-      {
+        ostringstream oss;
+        bool haveDot = false;
+        while(cc == DIGIT || c == '.')
+        {
+          oss << (char)c;
+          c = fgetc(mFile);
+          cc = charclasses[c];
+          if(c == '.')
+          {
+            if(haveDot)
+              break;
+            haveDot = true;
+          }
+        }
+        ungetc(c,mFile);
         strit = mStrings.find(oss.str());
         if(strit == mStrings.end())
         {
-          mStrings[oss.str()] = Token::STRING;
+          mStrings[oss.str()] = Token::INTEGER;
           strit = mStrings.find(oss.str());
         }
+        break;
       }
-      break;
+
+      case LOWER:
+      case UPPER:
+      {
+        ostringstream oss;
+        while(cc == LOWER || cc == UPPER || cc == UNDERSCORE || cc == DIGIT)
+        {
+          oss << (char)c;
+          c = fgetc(mFile);
+          cc = charclasses[c];
+        }
+        ungetc(c,mFile);
+        strit = mStrings.find(oss.str());
+        if(strit == mStrings.end())
+        {
+          mStrings[oss.str()] = Token::IDENTIFIER;
+          strit = mStrings.find(oss.str());
+        }
+        break;
+      }
+
+      case DOUBLEQUOTE:
+      {
+        ostringstream oss;
+        bool foundError = false;
+        c = fgetc(mFile);
+        cc = charclasses[c];
+        while(cc != DOUBLEQUOTE)
+        {
+          oss << (char)c;
+          if(cc != LOWER && cc != UPPER && cc != UNDERSCORE && cc != DIGIT
+              && c != ' ')
+          {
+            foundError = true;
+          }
+          c = fgetc(mFile);
+          cc = charclasses[c];
+        }
+        if(foundError)
+        {
+          ostringstream msg;
+          msg << "illegal string: " << oss.str() << endl;
+          error err = {mLineNumber, msg.str()};
+          mErrors.push_back(err);
+        }
+        else
+        {
+          strit = mStrings.find(oss.str());
+          if(strit == mStrings.end())
+          {
+            mStrings[oss.str()] = Token::STRING;
+            strit = mStrings.find(oss.str());
+          }
+        }
+        break;
+      }
+
+      case OTHER:
+        addIllegalCharacterError(c);
+        break;
+
+      default: break;
     }
-
-
-    default: break;
   }
-  if(strit != mStrings.end())
-  {
-    tok.setString(strit->first.c_str());
-    tok.setType(strit->second);
-  }
+  tok.setString(strit->first.c_str());
+  tok.setType(strit->second);
 
   return true;
 }
