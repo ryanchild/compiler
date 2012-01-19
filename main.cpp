@@ -28,14 +28,16 @@ int main(int argc, char** argv)
   Token t;
   while(s.scan(t))
   {
-    cout << "recognized token: '" << t << "' on line " << s.getLineNumber() << endl;
+    cout << "recognized token: '" << t << "' on line " << s.getLineNumber() 
+      << endl;
   }
 
   int ne = s.numErrors();
   if(ne > 0)
   {
     const char* plural = ne == 1 ? "" : "s";
-    cout << endl << ne << " fatal error" << plural << " found. Aborting..." << endl;
+    cout << endl << ne << " fatal error" << plural << " found. Aborting..." 
+      << endl;
     s.printErrors();
   }
 
