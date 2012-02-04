@@ -3,7 +3,7 @@
 #include "Token.h"
 
 Token::Token()
-  :mString("")
+  :mString(NULL)
 {}
 
 std::ostream& operator<<(std::ostream& out, Token& t)

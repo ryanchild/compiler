@@ -1,8 +1,6 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
-#include <string>
-
 class Token
 {
   public:
@@ -11,6 +9,7 @@ class Token
     enum tokentype
     {
       IDENTIFIER,
+      NUMBER,
       ADDSUBTRACT,
       MULTDIV,
       EQUAL,

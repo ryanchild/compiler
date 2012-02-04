@@ -174,7 +174,7 @@ bool Scanner::scan(Token& tok)
         strit = mStrings.find(oss.str());
         if(strit == mStrings.end())
         {
-          mStrings[oss.str()] = Token::INTEGER;
+          mStrings[oss.str()] = Token::NUMBER;
           strit = mStrings.find(oss.str());
         }
         break;

@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <iostream>
 
+#include "Parser.h"
 #include "Scanner.h"
 #include "Token.h"
 
@@ -25,12 +26,8 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  Token t;
-  while(s.scan(t))
-  {
-    cout << "recognized token: '" << t << "' on line " << s.getLineNumber() 
-      << endl;
-  }
+  Parser p(&s);
+  p.parse();
 
   int ne = s.numErrors();
   if(ne > 0)

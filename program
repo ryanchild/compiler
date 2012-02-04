@@ -5,7 +5,6 @@ begin
   integer b
   b=a+1
   string c = "Hello world!?09;:.,.."
-  string s="invalid#@string"
   boolean bool=0
 
   // array of 10 floats
