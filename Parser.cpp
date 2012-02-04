@@ -49,12 +49,9 @@ bool Parser::global()
     case Token::FLOAT:
     case Token::BOOLEAN:
     case Token::STRING:
-      datatype(true);
-      break;
-    default:
-      return false;
-      break;
+      return datatype(true);
   }
+  return false;
 }
 
 bool Parser::datatype(bool global/* = false*/)
@@ -63,15 +60,9 @@ bool Parser::datatype(bool global/* = false*/)
   switch(mTok.getType())
   {
     case Token::FUNCTION:
-      if(!global && function())
-        return true;
-      break;
+      return !global && function();
     case Token::IDENTIFIER:
-      if(identifier())
-        return true;
-      break;
-    default:
-      break;
+      return identifier();
   }
   return false;
 }
