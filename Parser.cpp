@@ -7,108 +7,108 @@ Parser::Parser(Scanner* s)
   :mScanner(s)
 {}
 
-bool Parser::identifier(bool decl/* = false*/)
+Token Parser::nextToken()
 {
-  mScanner->scan(mTok);
-  Token::tokentype t = mTok.getType();
-  if(t == Token::OPENSQUARE)
+  if(mPreScanned)
+    mPreScanned = false;
+  else
+    mScanner->scan(mTok);
+  return mTok;
+}
+
+bool Parser::typemark()
+{
+  Token::tokentype tt = nextToken().getType();
+  return tt == Token::INTEGER ||
+         tt == Token::FLOAT ||
+         tt == Token::BOOLEAN ||
+         tt == Token::STRING;
+}
+
+bool Parser::variabledecl()
+{
+  if(identifier())
   {
-    if(decl)
+    if(nextToken().getType() == Token::OPENSQUARE)
     {
-      // declaration
-      mScanner->scan(mTok);
-      Token::tokentype t = mTok.getType();
-
-      if(t == Token::NUMBER)
-      {
-        mScanner->scan(mTok);
-        Token::tokentype t = mTok.getType();
-
-        if(t == Token::CLOSESQUARE)
-        {
-          // TODO: add to symbol table
-          return true;
-        }
-      }
+      return nextToken().getType() == Token::NUMBER &&
+             nextToken().getType() == Token::CLOSESQUARE;
     }
     else
-    {
-      // name, destination
-    }
-  }
-  else
-    return false;
-}
-
-bool Parser::global()
-{
-  mScanner->scan(mTok);
-  switch(mTok.getType())
-  {
-    case Token::INTEGER:
-    case Token::FLOAT:
-    case Token::BOOLEAN:
-    case Token::STRING:
-      return datatype(true);
-  }
-  return false;
-}
-
-bool Parser::datatype(bool global/* = false*/)
-{
-  mScanner->scan(mTok);
-  switch(mTok.getType())
-  {
-    case Token::FUNCTION:
-      return !global && function();
-    case Token::IDENTIFIER:
-      return identifier();
-  }
-  return false;
-}
-
-bool Parser::function()
-{
-  while(mTok.getType() != Token::END)
-  {
-    getNext();
-  }
-  mScanner->scan(mTok);
-  if(mTok.getType() != Token::FUNCTION)
-  {
-    return false;
-  }
-  return true;
-}
-
-bool Parser::getNext()
-{
-  if(mScanner->scan(mTok))
-  {
-    switch(mTok.getType())
-    {
-      case Token::INTEGER:
-      case Token::FLOAT:
-      case Token::BOOLEAN:
-      case Token::STRING:
-        datatype();
-        break;
-      case Token::GLOBAL:
-        global();
-        break;
-      case Token::FUNCTION:
-        break;
-      default:
-        break;
-    }
-
+      setPreScanned();
     return true;
   }
   return false;
 }
 
-void Parser::parse()
+bool Parser::global()
 {
-  while(getNext())
-    std::cout << "got token: " << mTok.getString() << std::endl;
+  return nextToken().getType() == Token::GLOBAL;
+}
+
+bool Parser::declaration()
+{
+  if(!global())
+    setPreScanned();
+
+  if(!typemark())
+    setPreScanned();
+
+  if(functiondecl())
+    return true;
+
+  setPreScanned();
+  if(variabledecl())
+    return true;
+  
+  setPreScanned();
+  return false;
+}
+
+bool Parser::statement()
+{
+}
+
+bool Parser::functionbody()
+{
+  while(declaration());
+  if(nextToken().getType() == Token::BEGIN)
+  {
+    while(statement());
+    return nextToken().getType() == Token::END &&
+           nextToken().getType() == Token::FUNCTION;
+  }
+  return false;
+}
+
+bool Parser::parameterlist()
+{
+  if(typemark() && variabledecl() && nextToken().getType() == Token::COMMA) 
+      parameterlist();
+  setPreScanned();
+  return true;
+}
+
+bool Parser::identifier()
+{
+  return nextToken().getType() == Token::IDENTIFIER;
+}
+
+bool Parser::functionheader()
+{
+  return nextToken().getType() == Token::FUNCTION &&
+         identifier() &&
+         nextToken().getType() == Token::OPENPAREN &&
+         parameterlist() &&
+         nextToken().getType() == Token::CLOSEPAREN;
+}
+
+bool Parser::functiondecl()
+{
+  return typemark() && functionheader() && functionbody();
+}
+
+bool Parser::parse()
+{
+  return functiondecl();
 }

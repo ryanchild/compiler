@@ -9,18 +9,28 @@ class Parser
 {
   public:
     Parser(Scanner* s);
-    void parse();
+    bool parse();
 
   private:
-    bool identifier(bool decl = false);
-    bool global();
-    bool datatype(bool global = false);
-    bool function();
+    Token nextToken();
+    void setPreScanned() { mPreScanned = true; }
 
-    bool getNext();
+    bool ifstatement();
+    bool loopstatement();
+    bool typemark();
+    bool variabledecl();
+    bool global();
+    bool declaration();
+    bool statement();
+    bool functionbody();
+    bool parameterlist();
+    bool identifier();
+    bool functionheader();
+    bool functiondecl();
 
     Scanner* mScanner;
     Token mTok;
+    bool mPreScanned;
 };
 
 #endif //PARSER_H

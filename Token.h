@@ -29,6 +29,7 @@ class Token
       END,
       GLOBAL,
       FUNCTION,
+      BEGIN,
       AND,
       OR,
       NOT,
@@ -37,7 +38,8 @@ class Token
       CLOSESQUARE,
       OPENPAREN,
       CLOSEPAREN,
-      QUOTE
+      QUOTE,
+      COMMA
     };
 
     const char* getString() const { return mString; }

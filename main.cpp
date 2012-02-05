@@ -27,7 +27,10 @@ int main(int argc, char** argv)
   }
 
   Parser p(&s);
-  p.parse();
+  if(p.parse())
+    cout << "successfully parsed " << filename << endl;
+  else
+    cout << "error parsing " << filename << endl;
 
   int ne = s.numErrors();
   if(ne > 0)
