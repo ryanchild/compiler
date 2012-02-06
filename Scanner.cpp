@@ -29,6 +29,7 @@ bool Scanner::initialize()
   mStrings["function"]  = Token::FUNCTION;
   mStrings["begin"]     = Token::BEGIN;
   mStrings["if"]        = Token::IF;
+  mStrings["else"]      = Token::ELSE;
   mStrings["then"]      = Token::THEN;
   mStrings["global"]    = Token::GLOBAL;
   mStrings["integer"]   = Token::INTEGER;
