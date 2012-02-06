@@ -37,7 +37,7 @@ bool Scanner::initialize()
   mStrings["float"]     = Token::FLOAT;
   mStrings["string"]    = Token::STRING;
   mStrings["&"]         = Token::AND;
-  mStrings["|"]         = Token::NOT;
+  mStrings["|"]         = Token::OR;
   mStrings["not"]       = Token::NOT;
   mStrings["true"]      = Token::TRUE;
   mStrings["false"]     = Token::FALSE;

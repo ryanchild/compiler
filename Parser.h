@@ -17,7 +17,6 @@ class Parser
 
     bool typemark();
     bool variabledecl();
-    bool global();
     bool declaration();
     bool ifstatement();
     bool loopstatement();
@@ -26,9 +25,13 @@ class Parser
     bool name();
     bool factor();
     bool term();
+    bool term2();
     bool relation();
+    bool relation2();
     bool arithop();
+    bool arithop2();
     bool expression();
+    bool expression2();
     bool destination();
     bool assignmentstatement();
     bool statement();
