@@ -36,7 +36,7 @@ class Token
       NOT,
       TRUE,
       FALSE,
-      EQUALS,
+      ASSIGNMENT,
       OPENSQUARE,
       CLOSESQUARE,
       OPENPAREN,
