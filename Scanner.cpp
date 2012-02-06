@@ -130,6 +130,7 @@ bool Scanner::scan(Token& tok)
 
       case LT:
       case GT:
+      case EQUALS:
       case COLON:
       {
         ostringstream s;
