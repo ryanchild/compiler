@@ -36,6 +36,7 @@ class Scanner
       BRACKET,
       EXCLAMATION,
       LOGICALOP,
+      COLON,
       OTHER
     };
     

@@ -44,7 +44,7 @@ bool Scanner::initialize()
   mStrings["-"]         = Token::MINUS;
   mStrings["/"]         = Token::MULTDIV;
   mStrings["*"]         = Token::MULTDIV;
-  mStrings["="]         = Token::EQUALS;
+  mStrings[":="]        = Token::ASSIGNMENT;
   mStrings["["]         = Token::OPENSQUARE;
   mStrings["]"]         = Token::CLOSESQUARE;
   mStrings["("]         = Token::OPENPAREN;
@@ -130,7 +130,7 @@ bool Scanner::scan(Token& tok)
 
       case LT:
       case GT:
-      case EQUALS:
+      case COLON:
       {
         ostringstream s;
         s << (char)c;
@@ -314,7 +314,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   DIGIT,        // 7
   DIGIT,        // 8
   DIGIT,        // 9
-  OTHER,
+  COLON,        // :
   OTHER,        // ;
   LT,           // <
   EQUALS,       // =
