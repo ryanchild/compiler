@@ -38,11 +38,13 @@ bool Scanner::initialize()
   mStrings["&"]         = Token::AND;
   mStrings["|"]         = Token::NOT;
   mStrings["not"]       = Token::NOT;
-  mStrings["+"]         = Token::ADDSUBTRACT;
-  mStrings["-"]         = Token::ADDSUBTRACT;
+  mStrings["true"]      = Token::TRUE;
+  mStrings["false"]     = Token::FALSE;
+  mStrings["+"]         = Token::PLUS;
+  mStrings["-"]         = Token::MINUS;
   mStrings["/"]         = Token::MULTDIV;
   mStrings["*"]         = Token::MULTDIV;
-  mStrings["="]         = Token::ASSIGNMENT;
+  mStrings["="]         = Token::EQUALS;
   mStrings["["]         = Token::OPENSQUARE;
   mStrings["]"]         = Token::CLOSESQUARE;
   mStrings["("]         = Token::OPENPAREN;
@@ -55,6 +57,7 @@ bool Scanner::initialize()
   mStrings["!="]        = Token::NOTEQUAL;
   mStrings["\""]        = Token::QUOTE;
   mStrings[","]         = Token::COMMA; 
+  mStrings[":"]         = Token::COLON;
 
   mFile = fopen(mFilename.c_str(), "r");
   return mFile != NULL;

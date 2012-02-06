@@ -10,7 +10,8 @@ class Token
     {
       IDENTIFIER,
       NUMBER,
-      ADDSUBTRACT,
+      PLUS,
+      MINUS,
       MULTDIV,
       EQUAL,
       NOTEQUAL,
@@ -33,13 +34,16 @@ class Token
       AND,
       OR,
       NOT,
-      ASSIGNMENT,
+      TRUE,
+      FALSE,
+      EQUALS,
       OPENSQUARE,
       CLOSESQUARE,
       OPENPAREN,
       CLOSEPAREN,
       QUOTE,
-      COMMA
+      COMMA,
+      COLON
     };
 
     const char* getString() const { return mString; }
