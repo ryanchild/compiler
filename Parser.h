@@ -13,7 +13,7 @@ class Parser
 
   private:
     Token nextToken();
-    void setPreScanned() { mPreScanned = true; }
+    bool nextTokenIs(Token::tokentype tt);
 
     bool typemark();
     bool variabledecl();
@@ -37,7 +37,6 @@ class Parser
     bool statement();
     bool functionbody();
     bool parameterlist();
-    bool identifier();
     bool functionheader();
     bool functiondecl();
 

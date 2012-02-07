@@ -18,23 +18,30 @@ Token Parser::nextToken()
   return mTok;
 }
 
+bool Parser::nextTokenIs(Token::tokentype tt)
+{
+  if(nextToken().getType() == tt)
+    return true;
+  mPreScanned = true;
+  return false;
+}
+
+
 bool Parser::typemark()
 {
-  Token::tokentype tt = nextToken().getType();
-  return tt == Token::INTEGER ||
-         tt == Token::FLOAT ||
-         tt == Token::BOOLEAN ||
-         tt == Token::STRING;
+  return nextTokenIs(Token::INTEGER) ||
+         nextTokenIs(Token::FLOAT) ||
+         nextTokenIs(Token::BOOLEAN) ||
+         nextTokenIs(Token::STRING);
 }
 
 bool Parser::variabledecl()
 {
-  if(identifier())
+  if(nextTokenIs(Token::IDENTIFIER))
   {
-    if(nextToken().getType() == Token::OPENSQUARE)
-      return nextToken().getType() == Token::NUMBER &&
-             nextToken().getType() == Token::CLOSESQUARE;
-    setPreScanned();
+    if(nextTokenIs(Token::OPENSQUARE))
+      return nextTokenIs(Token::NUMBER) &&
+             nextTokenIs(Token::CLOSESQUARE);
     return true;
   }
   return false;
@@ -42,9 +49,7 @@ bool Parser::variabledecl()
 
 bool Parser::declaration()
 {
-  if(nextToken().getType() != Token::GLOBAL)
-    setPreScanned();
-  else
+  if(nextTokenIs(Token::GLOBAL))
   {
     //TODO: deal with global
   }
@@ -54,140 +59,91 @@ bool Parser::declaration()
     if(functiondecl())
       return true;
 
-    setPreScanned();
     if(variabledecl())
       return true;
   }
-  setPreScanned();
   return false;
 }
 
 bool Parser::ifstatement()
 {
-  if(nextToken().getType() == Token::IF &&
+  if(nextTokenIs(Token::IF) &&
      expression() &&
-     nextToken().getType() == Token::THEN &&
+     nextTokenIs(Token::THEN) &&
      statement())
   {
     while(statement());
-    if(nextToken().getType() == Token::ELSE &&
-       statement())
-    {
+    if(nextTokenIs(Token::ELSE) && statement())
       while(statement());
-    }
-    else
-      setPreScanned();
 
-    if(nextToken().getType() == Token::END &&
-       nextToken().getType() == Token::IF)
-      return true;
+    return nextTokenIs(Token::END) && nextTokenIs(Token::IF);
   }
   return false;
 }
 
 bool Parser::loopstatement()
 {
-  if(nextToken().getType() == Token::FOR &&
+  if(nextTokenIs(Token::FOR) &&
      assignmentstatement() &&
      expression())
   {
     while(statement());
-    if(nextToken().getType() == Token::END &&
-       nextToken().getType() == Token::FOR)
-      return true;
+    return nextTokenIs(Token::END) && nextTokenIs(Token::FOR);
   }
   return false;
 }
 
 bool Parser::functioncall()
 {
-  if(nextToken().getType() == Token::OPENPAREN &&
-     argumentlist() && 
-     nextToken().getType() == Token::CLOSEPAREN)
-    return true;
-
-  setPreScanned();
-  return false;
+  return nextTokenIs(Token::OPENPAREN) &&
+         argumentlist() && 
+         nextTokenIs(Token::CLOSEPAREN);
 }
 
 bool Parser::argumentlist()
 {
-  if(expression() && nextToken().getType() == Token::COMMA) 
+  if(expression() && nextTokenIs(Token::COMMA))
       argumentlist();
-  setPreScanned();
   return true;
 }
 
 bool Parser::name()
 {
-  if(nextToken().getType() == Token::OPENSQUARE &&
+  if(nextTokenIs(Token::OPENSQUARE) &&
      expression() && 
-     nextToken().getType() == Token::CLOSESQUARE)
+     nextTokenIs(Token::CLOSESQUARE))
     return true;
 
-  setPreScanned();
+  // already checked identifier
   return true;
 }
 
 bool Parser::factor()
 {
-  if(nextToken().getType() == Token::OPENPAREN)
+  if(nextTokenIs(Token::OPENPAREN))
   {
-     if(expression() && nextToken().getType() == Token::CLOSEPAREN)
+     if(expression() && nextTokenIs(Token::CLOSEPAREN))
        return true;
 
      mError = true;
      return false;
   }
 
-  setPreScanned();
-  if(nextToken().getType() == Token::NUMBER)
-    return true;
+  if(nextTokenIs(Token::IDENTIFIER))
+    return functioncall() || name();
 
-  setPreScanned();
-  if(nextToken().getType() == Token::STRING)
-    return true;
-
-  setPreScanned();
-  if(nextToken().getType() == Token::TRUE)
-    return true;
-
-  setPreScanned();
-  if(nextToken().getType() == Token::FALSE)
-    return true;
-
-  setPreScanned();
-  if(identifier())
-  {
-    if(functioncall())
-      return true;
-
-    setPreScanned();
-    if(name())
-      return true;
-  }
-
-  setPreScanned();
-  if(nextToken().getType() == Token::NUMBER)
-    return true;
-
-  setPreScanned();
-  if(nextToken().getType() == Token::MINUS)
+  if(nextTokenIs(Token::MINUS))
   {
     //TODO: do something with minus
-    if(identifier() && name())
-      return true;
-
-    setPreScanned();
-    if(nextToken().getType() == Token::NUMBER)
-      return true;
-
-    setPreScanned();
-    return false;
+    return ((nextTokenIs(Token::IDENTIFIER) && name()) ||
+            nextTokenIs(Token::NUMBER));
   }
 
-  setPreScanned();
-  return false;
+  return nextTokenIs(Token::NUMBER) ||
+         nextTokenIs(Token::STRING) ||
+         nextTokenIs(Token::TRUE) ||
+         nextTokenIs(Token::FALSE) ||
+         nextTokenIs(Token::NUMBER);
 }
 
 bool Parser::term()
@@ -197,10 +153,8 @@ bool Parser::term()
 
 bool Parser::term2()
 {
-  if(nextToken().getType() == Token::MULTDIV &&
-     factor())
+  if(nextTokenIs(Token::MULTDIV) && factor())
     term2();
-  setPreScanned();
   return true;
 }
 
@@ -211,30 +165,14 @@ bool Parser::relation()
 
 bool Parser::relation2()
 {
-  if(nextToken().getType() == Token::LTE && term())
+  if(nextTokenIs(Token::LTE) && term() ||
+     nextTokenIs(Token::GTE) && term() ||
+     nextTokenIs(Token::LT) && term() ||
+     nextTokenIs(Token::GT) && term() ||
+     nextTokenIs(Token::EQUAL) && term() ||
+     nextTokenIs(Token::NOTEQUAL) && term())
     relation2();
 
-  setPreScanned();
-  if(nextToken().getType() == Token::GTE && term())
-    relation2();
-
-  setPreScanned();
-  if(nextToken().getType() == Token::LT && term())
-    relation2();
-
-  setPreScanned();
-  if(nextToken().getType() == Token::GT && term())
-    relation2();
-
-  setPreScanned();
-  if(nextToken().getType() == Token::EQUAL && term())
-    relation2();
-
-  setPreScanned();
-  if(nextToken().getType() == Token::NOTEQUAL && term())
-    relation2();
-
-  setPreScanned();
   return true;
 }
 
@@ -245,53 +183,34 @@ bool Parser::arithop()
 
 bool Parser::arithop2()
 {
-  if(nextToken().getType() == Token::PLUS && relation())
+  if(nextTokenIs(Token::PLUS) && relation() ||
+     nextTokenIs(Token::MINUS) && relation())
     arithop2();
 
-  setPreScanned();
-  if(nextToken().getType() == Token::MINUS && relation())
-    arithop2();
-
-  setPreScanned();
   return !mError;
 }
 
 bool Parser::expression()
 {
   //TODO: do something with not
-  if(nextToken().getType() == Token::NOT &&
-     arithop() &&
-     expression2())
-    return true;
-
-  setPreScanned();
-  if(arithop() && expression2())
-    return true;
-
-  setPreScanned();
-  return false;
+  return (nextTokenIs(Token::NOT) && arithop() && expression2()) ||
+          arithop() && expression2();
 }
 
 bool Parser::expression2()
 {
-  if(nextToken().getType() == Token::AND && relation())
+  if(nextTokenIs(Token::AND) && relation() ||
+     nextTokenIs(Token::OR) && relation())
     expression2();
-
-  setPreScanned();
-  if(nextToken().getType() == Token::OR && relation())
-    expression2();
-
-  setPreScanned();
   return true;
 }
 
 bool Parser::destination()
 {
-  if(identifier())
+  if(nextTokenIs(Token::IDENTIFIER))
   {
-    if(nextToken().getType() == Token::OPENSQUARE)
-      return expression() && nextToken().getType() == Token::CLOSESQUARE;
-    setPreScanned();
+    if(nextTokenIs(Token::OPENSQUARE))
+      return expression() && nextTokenIs(Token::CLOSESQUARE);
     return true;
   }
   return false;
@@ -300,59 +219,43 @@ bool Parser::destination()
 bool Parser::assignmentstatement()
 {
   return destination() &&
-         nextToken().getType() == Token::ASSIGNMENT &&
+         nextTokenIs(Token::ASSIGNMENT) &&
          expression();
 }
 
 bool Parser::statement()
 {
-  if(assignmentstatement())
-    return true;
-
-  setPreScanned();
-  if(ifstatement())
-    return true;
-
-  setPreScanned();
-  if(loopstatement())
-    return true;
-
-  setPreScanned();
-  return false;
+  return assignmentstatement() ||
+         ifstatement() ||
+         loopstatement();
 }
 
 bool Parser::functionbody()
 {
   while(declaration());
-  if(nextToken().getType() == Token::BEGIN)
+  if(nextTokenIs(Token::BEGIN))
   {
     while(statement());
-    return nextToken().getType() == Token::END &&
-           nextToken().getType() == Token::FUNCTION;
+    return nextTokenIs(Token::END) &&
+           nextTokenIs(Token::FUNCTION);
   }
   return false;
 }
 
 bool Parser::parameterlist()
 {
-  if(typemark() && variabledecl() && nextToken().getType() == Token::COMMA) 
+  if(typemark() && variabledecl() && nextTokenIs(Token::COMMA))
       parameterlist();
-  setPreScanned();
   return true;
-}
-
-bool Parser::identifier()
-{
-  return nextToken().getType() == Token::IDENTIFIER;
 }
 
 bool Parser::functionheader()
 {
-  return nextToken().getType() == Token::FUNCTION &&
-         identifier() &&
-         nextToken().getType() == Token::OPENPAREN &&
+  return nextTokenIs(Token::FUNCTION) &&
+         nextTokenIs(Token::IDENTIFIER) &&
+         nextTokenIs(Token::OPENPAREN) &&
          parameterlist() &&
-         nextToken().getType() == Token::CLOSEPAREN;
+         nextTokenIs(Token::CLOSEPAREN);
 }
 
 bool Parser::functiondecl()
