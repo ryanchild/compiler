@@ -352,10 +352,10 @@ bool Parser::functionheader()
 
 bool Parser::functiondecl()
 {
-  return typemark() && functionheader() && functionbody();
+  return functionheader() && functionbody();
 }
 
 bool Parser::parse()
 {
-  return functiondecl();
+  return typemark() && functiondecl();
 }

@@ -122,6 +122,7 @@ bool Scanner::scan(Token& tok)
       case ASTERISK:
       case BRACKET:
       case LOGICALOP:
+      case COMMA:
       {
         ostringstream s;
         s << (char)c;
@@ -302,7 +303,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   BRACKET,      // )
   ASTERISK,     // *
   PLUS,         // +
-  OTHER,
+  COMMA,        // ,
   MINUS,        // -
   OTHER,
   FORWARDSLASH, // /

@@ -1,16 +1,29 @@
-// test program for fake programming language
+// meaningless test program for fake programming language
 
-integer function main(integer a)
-  integer b
-  string c
-  boolean bool
-  integer d
-  integer e
-  integer f
+integer function main()
+  integer i
+  string s
+  boolean b
+  global float gf
 
-  // array of 10 floats
   float array[10]
+  integer arr2[20]
+
+  // nested function
+  float function floatfunc(boolean a, boolean b)
+    float ret
+  begin
+    if a == b then
+      ret := 0.123
+    else
+      ret := -583.13
+    end if
+
+    floatfunc := ret
+  end function
+ 
 begin
+   
   b:=a+1
   c := "Hello world!?09;:.,.."
 
@@ -47,7 +60,23 @@ begin
   // test loops
   for i:=1 i<10
     a := a+1
+
+    // nested for loop
+    for j:=0 j<i
+      b := b-1
+    end for
   end for
+
+  gf := 1.234
+
+  a := 1
+  array[a] := 1
+  array[2] := -gf - -4.321
+
+  b1 := true
+  d := e | f
+  d := d & f
+  e := not d
 
   d := a & b
   e := a | b
