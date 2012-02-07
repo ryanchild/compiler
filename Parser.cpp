@@ -26,7 +26,6 @@ bool Parser::nextTokenIs(Token::tokentype tt)
   return false;
 }
 
-
 bool Parser::typemark()
 {
   return nextTokenIs(Token::INTEGER) ||
@@ -47,21 +46,22 @@ bool Parser::variabledecl()
   return false;
 }
 
-bool Parser::declaration()
+bool Parser::declaration(bool toplevel/* = false*/)
 {
   if(nextTokenIs(Token::GLOBAL))
   {
-    //TODO: deal with global
+    if(toplevel)
+    {
+      //TODO: deal with global
+    }
+    else
+    {
+      //TODO: issue warning
+    }
   }
 
   if(typemark())
-  {
-    if(functiondecl())
-      return true;
-
-    if(variabledecl())
-      return true;
-  }
+    return functiondecl() || variabledecl();
   return false;
 }
 
@@ -230,9 +230,9 @@ bool Parser::statement()
          loopstatement();
 }
 
-bool Parser::functionbody()
+bool Parser::functionbody(bool toplevel/* = false*/)
 {
-  while(declaration());
+  while(declaration(toplevel));
   if(nextTokenIs(Token::BEGIN))
   {
     while(statement());
@@ -258,12 +258,12 @@ bool Parser::functionheader()
          nextTokenIs(Token::CLOSEPAREN);
 }
 
-bool Parser::functiondecl()
+bool Parser::functiondecl(bool toplevel/* = false*/)
 {
-  return functionheader() && functionbody();
+  return functionheader() && functionbody(toplevel);
 }
 
 bool Parser::parse()
 {
-  return typemark() && functiondecl();
+  return typemark() && functiondecl(true);
 }

@@ -17,7 +17,7 @@ class Parser
 
     bool typemark();
     bool variabledecl();
-    bool declaration();
+    bool declaration(bool toplevel=false);
     bool ifstatement();
     bool loopstatement();
     bool functioncall();
@@ -35,10 +35,10 @@ class Parser
     bool destination();
     bool assignmentstatement();
     bool statement();
-    bool functionbody();
+    bool functionbody(bool toplevel=false);
     bool parameterlist();
     bool functionheader();
-    bool functiondecl();
+    bool functiondecl(bool toplevel=false);
 
     Scanner* mScanner;
     Token mTok;
