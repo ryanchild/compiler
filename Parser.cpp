@@ -6,6 +6,7 @@
 Parser::Parser(Scanner* s)
   :mScanner(s)
   ,mPreScanned(false)
+  ,mError(false)
 {}
 
 Token Parser::nextToken()
@@ -130,10 +131,14 @@ bool Parser::name()
 
 bool Parser::factor()
 {
-  if(nextToken().getType() == Token::OPENPAREN &&
-     expression() &&
-     nextToken().getType() == Token::CLOSEPAREN)
-    return true;
+  if(nextToken().getType() == Token::OPENPAREN)
+  {
+     if(expression() && nextToken().getType() == Token::CLOSEPAREN)
+       return true;
+
+     mError = true;
+     return false;
+  }
 
   setPreScanned();
   if(nextToken().getType() == Token::NUMBER)
@@ -248,7 +253,7 @@ bool Parser::arithop2()
     arithop2();
 
   setPreScanned();
-  return true;
+  return !mError;
 }
 
 bool Parser::expression()

@@ -44,6 +44,7 @@ class Parser
     Scanner* mScanner;
     Token mTok;
     bool mPreScanned;
+    bool mError;
 };
 
 #endif //PARSER_H
