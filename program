@@ -1,7 +1,12 @@
 // meaningless test program for fake programming language
 
 integer function main()
+  integer a
+  string c
+  integer e
+  float f
   integer i
+  integer j
   string s
   boolean b
   global float gf
@@ -9,8 +14,8 @@ integer function main()
   float array[10]
   integer arr2[20]
 
-  // nested function
-  float function floatfunc(boolean a, boolean b)
+  // nested global function
+  global float function floatfunc(boolean a, boolean b)
     float ret
   begin
     if a == b then
@@ -21,11 +26,28 @@ integer function main()
 
     floatfunc := ret
   end function
+
+  boolean function emptyfunc()
+  begin
+  end function
  
 begin
-   
-  b:=a+1
+  a:=getInt() 
+  f:=getFloat()
+  b := true
+  b:=getBool()
+
   c := "Hello world!?09;:.,.."
+  c := getString()
+  a:=putString(c)
+
+  // function calls have to be part of an assignment statement?
+  a := putString("a: ")
+  a := putInt(a)
+  a := putString("f: ")
+  a := putFloat(f)
+  a := putString("b: ")
+  a := putBool(b)
 
   // test relations
   if b==2 then
@@ -73,7 +95,6 @@ begin
   array[a] := 1
   array[2] := -gf - -4.321
 
-  b1 := true
   d := e | f
   d := d & f
   e := not d
