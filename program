@@ -55,7 +55,7 @@ begin
   else 
     // nested if/else
     if b<1 then
-      b := b/2
+      b := b/2 + (3 - (1 * 4))
     end if
   end if
 
