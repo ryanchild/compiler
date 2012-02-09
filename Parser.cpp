@@ -1,4 +1,6 @@
 #include <iostream>
+#include <string>
+#include <sstream>
 #include "Parser.h"
 #include "Scanner.h"
 #include "Token.h"
@@ -8,6 +10,61 @@ Parser::Parser(Scanner* s)
   ,mPreScanned(false)
   ,mError(false)
 {}
+
+void Parser::initialize()
+{
+  int addr = 0;
+  std::vector<datatype> params;
+  params.resize(0);
+  Symbol s;
+  s.st = FUNCTION;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("getBool", BOOLEAN, params)] = s;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("getInt", INTEGER, params)] = s;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("getString", STRING, params)] = s;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("getFloat", FLOAT, params)] = s;
+
+  params.resize(1);
+  params[0] = BOOLEAN;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("putBool", INTEGER, params)] = s;
+  params[0] = INTEGER;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("putInt", INTEGER, params)] = s;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("sqrt", INTEGER, params)] = s;
+  params[0] = STRING;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("putString", INTEGER, params)] = s;
+  params[0] = FLOAT;
+  s.address = addr++;
+  mGlobalSymbols[getSignature("putFloat", INTEGER, params)] = s;
+}
+
+char Parser::getDataType(datatype t)
+{
+  return t == INTEGER ? 'i' :
+         t == FLOAT ? 'f' :
+         t == BOOLEAN ? 'b' :
+         t == STRING ? 's' : '?';
+}
+
+std::string Parser::getSignature(const char* name, datatype ret, 
+    std::vector<datatype>& params)
+{
+  std::ostringstream oss;
+  oss << "_" << getDataType(ret) << params.size();
+
+  std::vector<datatype>::iterator it;
+  for(it=params.begin(); it!= params.end(); ++it)
+    oss << getDataType(*it);
+
+  oss << name;
+  return oss.str();
+}
 
 Token Parser::nextToken()
 {

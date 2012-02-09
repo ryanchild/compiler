@@ -27,6 +27,7 @@ int main(int argc, char** argv)
   }
 
   Parser p(&s);
+  p.initialize();
   if(p.parse())
     cout << "successfully parsed " << filename << endl;
   else

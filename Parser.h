@@ -2,6 +2,8 @@
 #define PARSER_H
 
 #include "Token.h"
+#include <map>
+#include <vector>
 
 class Scanner;
 
@@ -10,8 +12,32 @@ class Parser
   public:
     Parser(Scanner* s);
     bool parse();
+    void initialize();
+
+    enum datatype
+    {
+      INTEGER,
+      FLOAT,
+      BOOLEAN,
+      STRING
+    };
+
+    enum symboltype
+    {
+      DATA,
+      FUNCTION
+    };
+
+    struct Symbol
+    {
+      symboltype st;
+      datatype dt;
+      long address;
+    };
 
   private:
+    std::string getSignature(const char*, datatype, std::vector<datatype>&);
+    char getDataType(datatype);
     Token nextToken();
     bool nextTokenIs(Token::tokentype tt);
 
@@ -44,6 +70,9 @@ class Parser
     Token mTok;
     bool mPreScanned;
     bool mError;
+
+    std::map<std::string, Symbol> mGlobalSymbols;
+    std::map<std::string, Symbol> mLocalSymbols;
 };
 
 #endif //PARSER_H
