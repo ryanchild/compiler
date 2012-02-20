@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <cstring>
+#include <cstdlib>
 #include "Parser.h"
 #include "Scanner.h"
 #include "Token.h"
@@ -9,6 +11,7 @@ Parser::Parser(Scanner* s)
   :mScanner(s)
   ,mPreScanned(false)
   ,mError(false)
+  ,mLevel(0)
 {}
 
 void Parser::initialize()
@@ -66,6 +69,11 @@ std::string Parser::getSignature(const char* name, datatype ret,
   return oss.str();
 }
 
+const char* Parser::getNameFromSignature(const char* sig)
+{
+  return strstr(sig, "_") + 1;
+}
+
 Token Parser::nextToken()
 {
   if(mPreScanned)
@@ -93,24 +101,37 @@ bool Parser::typemark()
 
 bool Parser::variabledecl()
 {
+  Token::tokentype tt = mTok.getType();
+  datatype dt = tt == Token::INTEGER ? INTEGER :
+                tt == Token::FLOAT ? FLOAT :
+                tt == Token::BOOLEAN ? BOOLEAN : 
+                tt == Token::STRING ? STRING : INTEGER;
+                
   if(nextTokenIs(Token::IDENTIFIER))
   {
-    if(nextTokenIs(Token::OPENSQUARE))
-      return nextTokenIs(Token::NUMBER) &&
-             nextTokenIs(Token::CLOSESQUARE);
+    if(nextTokenIs(Token::OPENSQUARE) && nextTokenIs(Token::NUMBER))
+    {
+      int size = atoi(mTok.getString());
+      if(nextTokenIs(Token::CLOSESQUARE))
+      {
+        // add array to symbol table
+      }
+      else
+        return false;
+    }
+    // add type to symbol table
     return true;
   }
   return false;
 }
 
-bool Parser::declaration(bool toplevel/* = false*/)
+bool Parser::declaration()
 {
+  bool global = false;
   if(nextTokenIs(Token::GLOBAL))
   {
-    if(toplevel)
-    {
-      //TODO: deal with global
-    }
+    if(mLevel == 1)
+      global = true;
     else
     {
       //TODO: issue warning
@@ -118,14 +139,15 @@ bool Parser::declaration(bool toplevel/* = false*/)
   }
 
   if(typemark())
-    return functiondecl() || variabledecl();
+    return functiondecl(global) || variabledecl();
   return false;
 }
 
 bool Parser::ifstatement()
 {
+  datatype dt;
   if(nextTokenIs(Token::IF) &&
-     expression() &&
+     expression(dt) &&
      nextTokenIs(Token::THEN) &&
      statement())
   {
@@ -140,9 +162,10 @@ bool Parser::ifstatement()
 
 bool Parser::loopstatement()
 {
+  datatype dt;
   if(nextTokenIs(Token::FOR) &&
      assignmentstatement() &&
-     expression())
+     expression(dt))
   {
     while(statement());
     return nextTokenIs(Token::END) && nextTokenIs(Token::FOR);
@@ -159,15 +182,17 @@ bool Parser::functioncall()
 
 bool Parser::argumentlist()
 {
-  if(expression() && nextTokenIs(Token::COMMA))
+  datatype dt;
+  if(expression(dt) && nextTokenIs(Token::COMMA))
       argumentlist();
   return true;
 }
 
 bool Parser::name()
 {
+  datatype dt;
   if(nextTokenIs(Token::OPENSQUARE) &&
-     expression() && 
+     expression(dt) && 
      nextTokenIs(Token::CLOSESQUARE))
     return true;
 
@@ -175,11 +200,11 @@ bool Parser::name()
   return true;
 }
 
-bool Parser::factor()
+bool Parser::factor(datatype& dt)
 {
   if(nextTokenIs(Token::OPENPAREN))
   {
-     if(expression() && nextTokenIs(Token::CLOSEPAREN))
+     if(expression(dt) && nextTokenIs(Token::CLOSEPAREN))
        return true;
 
      mError = true;
@@ -187,25 +212,66 @@ bool Parser::factor()
   }
 
   if(nextTokenIs(Token::IDENTIFIER))
-    return functioncall() || name();
+  {
+    const char* id = mTok.getString();
+    if(functioncall())
+    {
+      // look up function name in symbol table and get return type
+      // dt = 
+    }
+    else if(name())
+    {
+      // look up variable in symbol table and get type
+      // dt = 
+    }
 
   if(nextTokenIs(Token::MINUS))
   {
     //TODO: do something with minus
-    return ((nextTokenIs(Token::IDENTIFIER) && name()) ||
-            nextTokenIs(Token::NUMBER));
+    if(nextTokenIs(Token::IDENTIFIER))
+    {
+      const char* id = mTok.getString();
+      if(name())
+      {
+        // look up variable in symbol table and get type
+        // dt = 
+      }
+    }
+    else if(nextTokenIs(Token::NUMBER))
+      dt = getNumberType();
+    else
+      return false;
+    return true;
   }
 
-  return nextTokenIs(Token::NUMBER) ||
-         nextTokenIs(Token::STRING) ||
-         nextTokenIs(Token::TRUE) ||
-         nextTokenIs(Token::FALSE) ||
-         nextTokenIs(Token::NUMBER);
+  if(nextTokenIs(Token::NUMBER))
+    dt = getNumberType();
+  else if(nextTokenIs(Token::STRING))
+    dt = STRING;
+  else if(nextTokenIs(Token::TRUE) || nextTokenIs(Token::FALSE))
+    dt = BOOLEAN;
+  else
+    return false;
+  return true;
 }
 
-bool Parser::term()
+bool Parser::term(datatype dt)
 {
-  return factor() && term2();
+  datatype dt1, dt2;
+  if(factor(dt1) && term2(dt2))
+  {
+    if(dt1 == dt2)
+    {
+      dt = dt1;
+      return true;
+    }
+    else
+    {
+      //TODO: report type check error
+      return false;
+    }
+  }
+  return false;
 }
 
 bool Parser::term2()
@@ -247,7 +313,7 @@ bool Parser::arithop2()
   return !mError;
 }
 
-bool Parser::expression()
+bool Parser::expression(datatype& dt)
 {
   //TODO: do something with not
   return (nextTokenIs(Token::NOT) && arithop() && expression2()) ||
@@ -264,10 +330,11 @@ bool Parser::expression2()
 
 bool Parser::destination()
 {
+  datatype dt;
   if(nextTokenIs(Token::IDENTIFIER))
   {
     if(nextTokenIs(Token::OPENSQUARE))
-      return expression() && nextTokenIs(Token::CLOSESQUARE);
+      return expression(dt) && nextTokenIs(Token::CLOSESQUARE);
     return true;
   }
   return false;
@@ -275,9 +342,10 @@ bool Parser::destination()
 
 bool Parser::assignmentstatement()
 {
+  datatype dt;
   return destination() &&
          nextTokenIs(Token::ASSIGNMENT) &&
-         expression();
+         expression(dt);
 }
 
 bool Parser::statement()
@@ -287,9 +355,9 @@ bool Parser::statement()
          loopstatement();
 }
 
-bool Parser::functionbody(bool toplevel/* = false*/)
+bool Parser::functionbody()
 {
-  while(declaration(toplevel));
+  while(declaration());
   if(nextTokenIs(Token::BEGIN))
   {
     while(statement());
@@ -299,25 +367,37 @@ bool Parser::functionbody(bool toplevel/* = false*/)
   return false;
 }
 
-bool Parser::parameterlist()
+bool Parser::parameterlist(std::vector<datatype>& params)
 {
   if(typemark() && variabledecl() && nextTokenIs(Token::COMMA))
-      parameterlist();
+      parameterlist(params);
   return true;
 }
 
-bool Parser::functionheader()
+bool Parser::functionheader(bool global/* = false*/)
 {
-  return nextTokenIs(Token::FUNCTION) &&
-         nextTokenIs(Token::IDENTIFIER) &&
-         nextTokenIs(Token::OPENPAREN) &&
-         parameterlist() &&
-         nextTokenIs(Token::CLOSEPAREN);
+  bool isFunctionHeader = nextTokenIs(Token::FUNCTION) &&
+                          nextTokenIs(Token::IDENTIFIER) &&
+                          nextTokenIs(Token::OPENPAREN);
+  if(isFunctionHeader)
+  {
+    std::vector<datatype> params;
+    isFunctionHeader = parameterlist(params) &&
+                       nextTokenIs(Token::CLOSEPAREN);
+    if(isFunctionHeader)
+    {
+      // do something with parameters
+    }
+  }
+  return isFunctionHeader;
 }
 
-bool Parser::functiondecl(bool toplevel/* = false*/)
+bool Parser::functiondecl(bool global/* = false*/)
 {
-  return functionheader() && functionbody(toplevel);
+  mLevel++;
+  bool isFunctionDecl = functionheader(global) && functionbody();
+  mLevel--;
+  return isFunctionDecl;
 }
 
 bool Parser::parse()

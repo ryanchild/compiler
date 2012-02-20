@@ -16,6 +16,7 @@ class Parser
 
     enum datatype
     {
+      NONE = 0,
       INTEGER,
       FLOAT,
       BOOLEAN,
@@ -24,55 +25,64 @@ class Parser
 
     enum symboltype
     {
-      DATA,
+      SCALAR,
+      ARRAY,
       FUNCTION
     };
 
     struct Symbol
     {
       symboltype st;
-      datatype dt;
       long address;
+      int size;
     };
 
   private:
     std::string getSignature(const char*, datatype, std::vector<datatype>&);
+    const char* getNameFromSignature(const char*);
     char getDataType(datatype);
     Token nextToken();
     bool nextTokenIs(Token::tokentype tt);
+    datatype getNumberType() 
+    {
+      return strchr(mTok.getString(),'.') ? FLOAT : INTEGER;
+    }
 
     bool typemark();
     bool variabledecl();
-    bool declaration(bool toplevel=false);
+    bool declaration();
     bool ifstatement();
     bool loopstatement();
     bool functioncall();
     bool argumentlist();
     bool name();
-    bool factor();
-    bool term();
-    bool term2();
+    bool factor(datatype&);
+    bool term(datatype&);
+    bool term2(datatype&);
     bool relation();
     bool relation2();
     bool arithop();
     bool arithop2();
-    bool expression();
+    bool expression(datatype&);
     bool expression2();
     bool destination();
     bool assignmentstatement();
     bool statement();
-    bool functionbody(bool toplevel=false);
-    bool parameterlist();
-    bool functionheader();
-    bool functiondecl(bool toplevel=false);
+    bool functionbody();
+    bool parameterlist(std::vector<datatype>&);
+    bool functionheader(bool global=false);
+    bool functiondecl(bool global=false);
 
     Scanner* mScanner;
     Token mTok;
     bool mPreScanned;
     bool mError;
+    int mLevel;
 
-    std::map<std::string, Symbol> mGlobalSymbols;
-    std::map<std::string, Symbol> mLocalSymbols;
+    typedef std::map<std::string, Symbol> SymbolTable;
+    typedef SymbolTable::iterator SymbolTableIt;
+    SymbolTable mGlobalSymbols;
+    SymbolTable mLocalSymbols;
 };
 
 #endif //PARSER_H
