@@ -65,6 +65,7 @@ class Parser
 
         void setDataType(datatype dt) { mDt = dt; }
         datatype getDataType() const { return mDt; }
+        structuretype getStructureType() const { return mSt; }
 
       private:
         structuretype mSt;
@@ -89,6 +90,10 @@ class Parser
         {}
 
         datatype getDataType() const { return mSt.getDataType(); }
+        structuretype getStructureType() const 
+        { 
+          return mSt.getStructureType(); 
+        }
         long getAddr() const { return mAddr; }
 
       private:
@@ -163,6 +168,8 @@ class Parser
     bool mError;
     int mLevel;
     long mCurrentAddr;
+    // hack to allow arrays as an expression
+    bool mIsArray;
 
     SymbolTable mGlobalSymbols;
     std::vector<SymbolTable> mLocalSymbols;

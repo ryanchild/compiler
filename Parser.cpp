@@ -13,6 +13,7 @@ Parser::Parser(Scanner* s)
   ,mError(false)
   ,mLevel(-1)
   ,mCurrentAddr(0)
+  ,mIsArray(false)
   ,mLocalSymbols(0)
 {}
 
@@ -258,6 +259,10 @@ bool Parser::factor(datatype& dt)
         return false;
       }
       dt = it->second.getDataType();
+
+      // hack to allow arrays as expression
+      if(it->second.getStructureType() == ARRAY)
+        mIsArray = true;
     }
   }
 
@@ -299,18 +304,15 @@ bool Parser::factor(datatype& dt)
 bool Parser::term(datatype& dt)
 {
   datatype dt1, dt2;
-  if(factor(dt1) && term2(dt2))
+  if(factor(dt1))
   {
-    if(dt1 == dt2)
-    {
-      dt = dt1;
-      return true;
-    }
-    else
+    if(term2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
       return false;
     }
+    dt = dt1;
+    return true;
   }
   return false;
 }
@@ -335,18 +337,15 @@ bool Parser::term2(datatype& dt)
 bool Parser::relation(datatype& dt)
 {
   datatype dt1, dt2;
-  if(term(dt1) && relation2(dt2))
+  if(term(dt1))
   {
-    if(dt1 == dt2)
-    {
-      dt = dt1;
-      return true;
-    }
-    else
+    if(relation2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
       return false;
     }
+    dt = dt1;
+    return true;
   }
   return false;
 }
@@ -376,18 +375,15 @@ bool Parser::relation2(datatype& dt)
 bool Parser::arithop(datatype& dt)
 {
   datatype dt1, dt2;
-  if(relation(dt1) && arithop2(dt2))
+  if(relation(dt1))
   {
-    if(dt1 == dt2)
-    {
-      dt = dt1;
-      return true;
-    }
-    else
+    if(arithop2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
       return false;
     }
+    dt = dt1;
+    return true;
   }
   return false;
 }
@@ -414,18 +410,16 @@ bool Parser::expression(datatype& dt)
   datatype dt1, dt2;
   //TODO: do something with not
   bool haveNot = nextTokenIs(Token::NOT);
-  if(arithop(dt1) && expression2(dt2))
+  if(arithop(dt1))
   {
-    if(dt1 == dt2)
-    {
-      dt = dt1;
-      return true;
-    }
-    else
+    if(expression2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
       return false;
     }
+    dt = dt1;
+    mIsArray = false;
+    return true;
   }
   return false;
 }
