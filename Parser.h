@@ -16,37 +16,121 @@ class Parser
 
     enum datatype
     {
-      NONE = 0,
-      INTEGER,
-      FLOAT,
-      BOOLEAN,
-      STRING
+      INTEGER = 0x0,
+      BOOLEAN = 0x01,
+      FLOAT   = 0x02,
+      STRING  = 0x04
     };
-
-    enum symboltype
+    
+    enum structuretype
     {
       SCALAR,
       ARRAY,
       FUNCTION
     };
 
-    struct Symbol
+    class SymbolType
     {
-      symboltype st;
-      long address;
-      int size;
+      public:
+        SymbolType()
+          :mSt(SCALAR)
+          ,mDt(INTEGER)
+          ,mSize(0)
+        {}
+
+        SymbolType(structuretype st,
+                   datatype dt)
+          :mSt(st)
+          ,mDt(dt)
+          ,mSize(0)
+        {}
+
+        SymbolType(structuretype st,
+                   datatype dt,
+                   int size)
+          :mSt(st)
+          ,mDt(dt)
+          ,mSize(size)
+        {}
+
+        SymbolType(structuretype st,
+                   datatype dt,
+                   int size,
+                   std::vector<SymbolType> params)
+          :mSt(st)
+          ,mDt(dt)
+          ,mSize(size)
+          ,mParams(params)
+          {}
+
+        void setDataType(datatype dt) { mDt = dt; }
+        datatype getDataType() const { return mDt; }
+
+      private:
+        structuretype mSt;
+        datatype mDt;
+        int mSize;
+        std::vector<SymbolType> mParams;
+    };
+
+    class Symbol
+    {
+      public:
+        Symbol(const char* id, SymbolType st, long addr)
+          :mId(id)
+          ,mSt(st)
+          ,mAddr(addr)
+        {}
+        
+        Symbol()
+          :mId(NULL)
+          ,mSt(SymbolType())
+          ,mAddr(0)
+        {}
+
+        datatype getDataType() const { return mSt.getDataType(); }
+        long getAddr() const { return mAddr; }
+
+      private:
+        const char* mId;
+        SymbolType mSt;
+        long mAddr;
     };
 
   private:
-    std::string getSignature(const char*, datatype, std::vector<datatype>&);
-    const char* getNameFromSignature(const char*);
-    char getDataType(datatype);
+    typedef std::map<std::string, Symbol> SymbolTable;
+    typedef SymbolTable::iterator SymbolTableIt;
+
     Token nextToken();
     bool nextTokenIs(Token::tokentype tt);
     datatype getNumberType() 
     {
       return strchr(mTok.getString(),'.') ? FLOAT : INTEGER;
     }
+    bool arithOpCompatible(datatype dt1, datatype dt2) 
+    { 
+      // no strings or booleans
+      return !((dt1 | dt2) & 0x05);
+    }
+    bool relationalOpCompatible(datatype dt1, datatype dt2) 
+    { 
+      // no floats or strings
+      return !((dt1 | dt2) & 0x06);
+    }
+    bool bitwiseOpCompatible(datatype dt1, datatype dt2)
+    {
+      // ints only
+      return !(dt1 | dt2);
+    }
+    datatype tokenTypeToDataType(Token::tokentype tt)
+    {
+      return tt == Token::INTEGER ? INTEGER :
+             tt == Token::FLOAT ? FLOAT :
+             tt == Token::BOOLEAN ? BOOLEAN : 
+             tt == Token::STRING ? STRING : INTEGER;
+    }
+    bool lookupSymbol(const char* id, SymbolTableIt& it);
+    SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
 
     bool typemark();
     bool variabledecl();
@@ -54,22 +138,22 @@ class Parser
     bool ifstatement();
     bool loopstatement();
     bool functioncall();
-    bool argumentlist();
+    bool argumentlist(std::vector<SymbolType>&);
     bool name();
     bool factor(datatype&);
     bool term(datatype&);
     bool term2(datatype&);
-    bool relation();
-    bool relation2();
-    bool arithop();
-    bool arithop2();
+    bool relation(datatype&);
+    bool relation2(datatype&);
+    bool arithop(datatype&);
+    bool arithop2(datatype&);
     bool expression(datatype&);
-    bool expression2();
-    bool destination();
+    bool expression2(datatype&);
+    bool destination(SymbolTableIt& it);
     bool assignmentstatement();
     bool statement();
     bool functionbody();
-    bool parameterlist(std::vector<datatype>&);
+    bool parameterlist(std::vector<SymbolType>&);
     bool functionheader(bool global=false);
     bool functiondecl(bool global=false);
 
@@ -78,11 +162,10 @@ class Parser
     bool mPreScanned;
     bool mError;
     int mLevel;
+    long mCurrentAddr;
 
-    typedef std::map<std::string, Symbol> SymbolTable;
-    typedef SymbolTable::iterator SymbolTableIt;
     SymbolTable mGlobalSymbols;
-    SymbolTable mLocalSymbols;
+    std::vector<SymbolTable> mLocalSymbols;
 };
 
 #endif //PARSER_H

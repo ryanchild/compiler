@@ -11,67 +11,48 @@ Parser::Parser(Scanner* s)
   :mScanner(s)
   ,mPreScanned(false)
   ,mError(false)
-  ,mLevel(0)
+  ,mLevel(-1)
+  ,mCurrentAddr(0)
+  ,mLocalSymbols(0)
 {}
 
 void Parser::initialize()
 {
-  int addr = 0;
-  std::vector<datatype> params;
+  std::vector<SymbolType> params;
   params.resize(0);
-  Symbol s;
-  s.st = FUNCTION;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("getBool", BOOLEAN, params)] = s;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("getInt", INTEGER, params)] = s;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("getString", STRING, params)] = s;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("getFloat", FLOAT, params)] = s;
+  mGlobalSymbols["getBool"] = Symbol("getBool",
+                                     SymbolType(FUNCTION, BOOLEAN),
+                                     mCurrentAddr++);
+  mGlobalSymbols["getInt"] = Symbol("getInt",
+                                    SymbolType(FUNCTION, INTEGER),
+                                    mCurrentAddr++);
+  mGlobalSymbols["getString"] = Symbol("getString",
+                                       SymbolType(FUNCTION, STRING),
+                                       mCurrentAddr++);
+  mGlobalSymbols["getFloat"] = Symbol("getFloat",
+                                      SymbolType(FUNCTION, FLOAT),
+                                      mCurrentAddr++);
 
   params.resize(1);
-  params[0] = BOOLEAN;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("putBool", INTEGER, params)] = s;
-  params[0] = INTEGER;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("putInt", INTEGER, params)] = s;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("sqrt", INTEGER, params)] = s;
-  params[0] = STRING;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("putString", INTEGER, params)] = s;
-  params[0] = FLOAT;
-  s.address = addr++;
-  mGlobalSymbols[getSignature("putFloat", INTEGER, params)] = s;
-}
-
-char Parser::getDataType(datatype t)
-{
-  return t == INTEGER ? 'i' :
-         t == FLOAT ? 'f' :
-         t == BOOLEAN ? 'b' :
-         t == STRING ? 's' : '?';
-}
-
-std::string Parser::getSignature(const char* name, datatype ret, 
-    std::vector<datatype>& params)
-{
-  std::ostringstream oss;
-  oss << "_" << getDataType(ret) << params.size();
-
-  std::vector<datatype>::iterator it;
-  for(it=params.begin(); it!= params.end(); ++it)
-    oss << getDataType(*it);
-
-  oss << name;
-  return oss.str();
-}
-
-const char* Parser::getNameFromSignature(const char* sig)
-{
-  return strstr(sig, "_") + 1;
+  params[0] = SymbolType(SCALAR, BOOLEAN);
+  mGlobalSymbols["putBool"] = Symbol("putBool",
+                                     SymbolType(FUNCTION, INTEGER, 0, params),
+                                     mCurrentAddr++);
+  params[0].setDataType(INTEGER);
+  mGlobalSymbols["putInt"] = Symbol("putInt",
+                                    SymbolType(FUNCTION, INTEGER, 0, params),
+                                    mCurrentAddr++);
+  mGlobalSymbols["sqrt"] = Symbol("sqrt",
+                                  SymbolType(FUNCTION, FLOAT, 0, params),
+                                  mCurrentAddr++);
+  params[0].setDataType(STRING);
+  mGlobalSymbols["putString"] = Symbol("putString",
+                                       SymbolType(FUNCTION, INTEGER, 0, params),
+                                       mCurrentAddr++);
+  params[0].setDataType(FLOAT);
+  mGlobalSymbols["putFloat"] = Symbol("putFloat",
+                                      SymbolType(FUNCTION, INTEGER, 0, params),
+                                      mCurrentAddr++);
 }
 
 Token Parser::nextToken()
@@ -91,6 +72,14 @@ bool Parser::nextTokenIs(Token::tokentype tt)
   return false;
 }
 
+bool Parser::lookupSymbol(const char* id, SymbolTableIt& it)
+{
+  it = localSymbolTable().find(id);
+  if(it == localSymbolTable().end())
+    it = mGlobalSymbols.find(id);
+  return (it == mGlobalSymbols.end());
+}
+
 bool Parser::typemark()
 {
   return nextTokenIs(Token::INTEGER) ||
@@ -102,24 +91,30 @@ bool Parser::typemark()
 bool Parser::variabledecl()
 {
   Token::tokentype tt = mTok.getType();
-  datatype dt = tt == Token::INTEGER ? INTEGER :
-                tt == Token::FLOAT ? FLOAT :
-                tt == Token::BOOLEAN ? BOOLEAN : 
-                tt == Token::STRING ? STRING : INTEGER;
+  datatype dt = tokenTypeToDataType(tt);
                 
   if(nextTokenIs(Token::IDENTIFIER))
   {
+    const char* id = mTok.getString();
     if(nextTokenIs(Token::OPENSQUARE) && nextTokenIs(Token::NUMBER))
     {
+      if(getNumberType() != INTEGER)
+      {
+        //TODO: throw type error
+        return false;
+      }
       int size = atoi(mTok.getString());
       if(nextTokenIs(Token::CLOSESQUARE))
       {
-        // add array to symbol table
+        localSymbolTable()[id] = Symbol(id,
+                                 SymbolType(ARRAY, dt, size),
+                                 mCurrentAddr++);
+        return true;
       }
-      else
-        return false;
+      return false;
     }
-    // add type to symbol table
+
+    localSymbolTable()[id] = Symbol(id, SymbolType(SCALAR, dt), mCurrentAddr++);
     return true;
   }
   return false;
@@ -149,11 +144,27 @@ bool Parser::ifstatement()
   if(nextTokenIs(Token::IF) &&
      expression(dt) &&
      nextTokenIs(Token::THEN) &&
-     statement())
+     statement() &&
+     nextTokenIs(Token::SEMICOLON))
   {
-    while(statement());
-    if(nextTokenIs(Token::ELSE) && statement())
-      while(statement());
+    if(dt != BOOLEAN && dt != INTEGER)
+    {
+      //TODO: throw type check error
+      return false;
+    }
+    while(statement())
+    {
+      if(!nextTokenIs(Token::SEMICOLON))
+        return false;
+    }
+    if(nextTokenIs(Token::ELSE) && statement() && nextTokenIs(Token::SEMICOLON))
+    {
+      while(statement())
+      {
+        if(!nextTokenIs(Token::SEMICOLON))
+          return false;
+      }
+    }
 
     return nextTokenIs(Token::END) && nextTokenIs(Token::IF);
   }
@@ -167,7 +178,16 @@ bool Parser::loopstatement()
      assignmentstatement() &&
      expression(dt))
   {
-    while(statement());
+    if(dt != BOOLEAN && dt != INTEGER)
+    {
+      //TODO: throw type check error
+      return false;
+    }
+    while(statement())
+    {
+      if(!nextTokenIs(Token::SEMICOLON))
+        return false;
+    }
     return nextTokenIs(Token::END) && nextTokenIs(Token::FOR);
   }
   return false;
@@ -175,16 +195,22 @@ bool Parser::loopstatement()
 
 bool Parser::functioncall()
 {
+  std::vector<SymbolType> args;
   return nextTokenIs(Token::OPENPAREN) &&
-         argumentlist() && 
+         argumentlist(args) && 
          nextTokenIs(Token::CLOSEPAREN);
 }
 
-bool Parser::argumentlist()
+bool Parser::argumentlist(std::vector<SymbolType>& args)
 {
   datatype dt;
-  if(expression(dt) && nextTokenIs(Token::COMMA))
-      argumentlist();
+  if(expression(dt))
+  {
+    //TODO: arrays???
+    args.push_back(SymbolType(SCALAR, dt));
+  }
+  if(nextTokenIs(Token::COMMA))
+      argumentlist(args);
   return true;
 }
 
@@ -192,9 +218,16 @@ bool Parser::name()
 {
   datatype dt;
   if(nextTokenIs(Token::OPENSQUARE) &&
-     expression(dt) && 
-     nextTokenIs(Token::CLOSESQUARE))
-    return true;
+     expression(dt))
+  {
+    if(dt != BOOLEAN && dt != INTEGER)
+    {
+      //TODO: throw type check error
+      return false;
+    }
+    if(nextTokenIs(Token::CLOSESQUARE))
+      return true;
+  }
 
   // already checked identifier
   return true;
@@ -214,16 +247,17 @@ bool Parser::factor(datatype& dt)
   if(nextTokenIs(Token::IDENTIFIER))
   {
     const char* id = mTok.getString();
-    if(functioncall())
+    if(functioncall() || name())
     {
-      // look up function name in symbol table and get return type
-      // dt = 
+      SymbolTableIt it;
+      if(!lookupSymbol(id, it))
+      {
+        //TODO: throw symbol not found error
+        return false;
+      }
+      dt = it->second.getDataType();
     }
-    else if(name())
-    {
-      // look up variable in symbol table and get type
-      // dt = 
-    }
+  }
 
   if(nextTokenIs(Token::MINUS))
   {
@@ -233,8 +267,13 @@ bool Parser::factor(datatype& dt)
       const char* id = mTok.getString();
       if(name())
       {
-        // look up variable in symbol table and get type
-        // dt = 
+        SymbolTableIt it;
+        if(!lookupSymbol(id, it))
+        {
+          //TODO: throw symbol not found error
+          return false;
+        }
+        dt = it->second.getDataType();
       }
     }
     else if(nextTokenIs(Token::NUMBER))
@@ -255,7 +294,7 @@ bool Parser::factor(datatype& dt)
   return true;
 }
 
-bool Parser::term(datatype dt)
+bool Parser::term(datatype& dt)
 {
   datatype dt1, dt2;
   if(factor(dt1) && term2(dt2))
@@ -274,67 +313,163 @@ bool Parser::term(datatype dt)
   return false;
 }
 
-bool Parser::term2()
+bool Parser::term2(datatype& dt)
 {
-  if(nextTokenIs(Token::MULTDIV) && factor())
-    term2();
-  return true;
+  datatype dt2;
+  if(nextTokenIs(Token::MULTDIV) && factor(dt))
+  {
+    bool lastterm = term2(dt2);
+    if(!lastterm && !arithOpCompatible(dt, dt2))
+    {
+      //TODO: report type check error
+      return false;
+    }
+    return true;
+  }
+
+  return false;
 }
 
-bool Parser::relation()
+bool Parser::relation(datatype& dt)
 {
-  return term() && relation2();
+  datatype dt1, dt2;
+  if(term(dt1) && relation2(dt2))
+  {
+    if(dt1 == dt2)
+    {
+      dt = dt1;
+      return true;
+    }
+    else
+    {
+      //TODO: report type check error
+      return false;
+    }
+  }
+  return false;
 }
 
-bool Parser::relation2()
+bool Parser::relation2(datatype& dt)
 {
-  if(nextTokenIs(Token::LTE) && term() ||
-     nextTokenIs(Token::GTE) && term() ||
-     nextTokenIs(Token::LT) && term() ||
-     nextTokenIs(Token::GT) && term() ||
-     nextTokenIs(Token::EQUAL) && term() ||
-     nextTokenIs(Token::NOTEQUAL) && term())
-    relation2();
+  datatype dt2;
+  if((nextTokenIs(Token::LTE)) ||
+     (nextTokenIs(Token::LT)) ||
+     (nextTokenIs(Token::GTE)) ||
+     (nextTokenIs(Token::GT)) ||
+     (nextTokenIs(Token::EQUAL)) ||
+     (nextTokenIs(Token::NOTEQUAL)) && term(dt))
+  {
+    bool lastrelation = relation2(dt2);
+    if(!lastrelation && !relationalOpCompatible(dt, dt2))
+    {
+      //TODO: report type check error
+      return false;
+    }
+    return true;
+  }
 
-  return true;
+  return false;
 }
 
-bool Parser::arithop()
+bool Parser::arithop(datatype& dt)
 {
-  return relation() && arithop2();
+  datatype dt1, dt2;
+  if(relation(dt1) && arithop2(dt2))
+  {
+    if(dt1 == dt2)
+    {
+      dt = dt1;
+      return true;
+    }
+    else
+    {
+      //TODO: report type check error
+      return false;
+    }
+  }
+  return false;
 }
 
-bool Parser::arithop2()
+bool Parser::arithop2(datatype& dt)
 {
-  if(nextTokenIs(Token::PLUS) && relation() ||
-     nextTokenIs(Token::MINUS) && relation())
-    arithop2();
+  datatype dt2;
+  if((nextTokenIs(Token::PLUS) ||
+      nextTokenIs(Token::MINUS)) && relation(dt))
+  {
+    bool lastop = arithop2(dt2);
+    if(!lastop && !arithOpCompatible(dt, dt2))
+    {
+      return false;
+    }
+    return !mError;
+  }
 
-  return !mError;
+  return false;
 }
 
 bool Parser::expression(datatype& dt)
 {
+  datatype dt1, dt2;
   //TODO: do something with not
-  return (nextTokenIs(Token::NOT) && arithop() && expression2()) ||
-          arithop() && expression2();
+  bool haveNot = nextTokenIs(Token::NOT);
+  if(arithop(dt1) && expression2(dt2))
+  {
+    if(dt1 == dt2)
+    {
+      dt = dt1;
+      return true;
+    }
+    else
+    {
+      //TODO: report type check error
+      return false;
+    }
+  }
+  return false;
 }
 
-bool Parser::expression2()
+bool Parser::expression2(datatype& dt)
 {
-  if(nextTokenIs(Token::AND) && relation() ||
-     nextTokenIs(Token::OR) && relation())
-    expression2();
-  return true;
+  datatype dt2;
+  if((nextTokenIs(Token::AND) ||
+      nextTokenIs(Token::OR)) && relation(dt))
+  {
+    bool lastexpression = expression2(dt2);
+    if(!lastexpression && !bitwiseOpCompatible(dt, dt2))
+    {
+      //TODO: report type check error
+      return false;
+    }
+    return true;
+  }
+
+  return false;
 }
 
-bool Parser::destination()
+bool Parser::destination(SymbolTableIt& it)
 {
   datatype dt;
   if(nextTokenIs(Token::IDENTIFIER))
   {
+    const char* id = mTok.getString();
     if(nextTokenIs(Token::OPENSQUARE))
-      return expression(dt) && nextTokenIs(Token::CLOSESQUARE);
+    {
+      if(expression(dt))
+      {
+        if(dt != INTEGER)
+        {
+          //TODO: report type error
+          return false;
+        }
+        if(!nextTokenIs(Token::CLOSESQUARE))
+          return false;
+      }
+    }
+    if(!lookupSymbol(id, it))
+    {
+      //TODO: error symbol not found
+      return false;
+    }
     return true;
   }
   return false;
@@ -343,9 +478,17 @@ bool Parser::destination()
 bool Parser::assignmentstatement()
 {
   datatype dt;
-  return destination() &&
-         nextTokenIs(Token::ASSIGNMENT) &&
-         expression(dt);
+  SymbolTableIt s;
+  if(destination(s) && nextTokenIs(Token::ASSIGNMENT) && expression(dt))
+  {
+    if(s->second.getDataType() != dt)
+    {
+      //TODO: throw type error
+      return false;
+    }
+    return true;
+  }
+  return false;
 }
 
 bool Parser::statement()
@@ -357,17 +500,25 @@ bool Parser::statement()
 
 bool Parser::functionbody()
 {
-  while(declaration());
+  while(declaration())
+  {
+    if(!nextTokenIs(Token::SEMICOLON))
+      return false;
+  }
   if(nextTokenIs(Token::BEGIN))
   {
-    while(statement());
+    while(statement())
+    {
+      if(!nextTokenIs(Token::SEMICOLON))
+        return false;
+    }
     return nextTokenIs(Token::END) &&
            nextTokenIs(Token::FUNCTION);
   }
   return false;
 }
 
-bool Parser::parameterlist(std::vector<datatype>& params)
+bool Parser::parameterlist(std::vector<SymbolType>& params)
 {
   if(typemark() && variabledecl() && nextTokenIs(Token::COMMA))
       parameterlist(params);
@@ -376,17 +527,26 @@ bool Parser::parameterlist(std::vector<datatype>& params)
 
 bool Parser::functionheader(bool global/* = false*/)
 {
+  datatype dt = tokenTypeToDataType(mTok.getType());
+
   bool isFunctionHeader = nextTokenIs(Token::FUNCTION) &&
-                          nextTokenIs(Token::IDENTIFIER) &&
-                          nextTokenIs(Token::OPENPAREN);
+                          nextTokenIs(Token::IDENTIFIER);
+  char* id = NULL;
+  if(isFunctionHeader)
+    id = const_cast<char*>(mTok.getString());
+
+  isFunctionHeader = isFunctionHeader && nextTokenIs(Token::OPENPAREN);
   if(isFunctionHeader)
   {
-    std::vector<datatype> params;
+    std::vector<SymbolType> params;
     isFunctionHeader = parameterlist(params) &&
                        nextTokenIs(Token::CLOSEPAREN);
     if(isFunctionHeader)
     {
-      // do something with parameters
+      SymbolTable& st = global ? mGlobalSymbols : localSymbolTable();
+      st[id] = Symbol(id,
+                      SymbolType(FUNCTION, dt, 0, params),
+                      mCurrentAddr++);
     }
   }
   return isFunctionHeader;
@@ -395,7 +555,9 @@ bool Parser::functionheader(bool global/* = false*/)
 bool Parser::functiondecl(bool global/* = false*/)
 {
   mLevel++;
+  mLocalSymbols.push_back(SymbolTable());
   bool isFunctionDecl = functionheader(global) && functionbody();
+  mLocalSymbols.pop_back();
   mLevel--;
   return isFunctionDecl;
 }
