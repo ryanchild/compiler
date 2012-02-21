@@ -72,11 +72,13 @@ bool Parser::nextTokenIs(Token::tokentype tt)
   return false;
 }
 
-bool Parser::lookupSymbol(const char* id, SymbolTableIt& it)
+bool Parser::lookupSymbol(std::string id, SymbolTableIt& it)
 {
   it = localSymbolTable().find(id);
   if(it == localSymbolTable().end())
     it = mGlobalSymbols.find(id);
+  else 
+    return true;
   return (it == mGlobalSymbols.end());
 }
 

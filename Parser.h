@@ -129,7 +129,7 @@ class Parser
              tt == Token::BOOLEAN ? BOOLEAN : 
              tt == Token::STRING ? STRING : INTEGER;
     }
-    bool lookupSymbol(const char* id, SymbolTableIt& it);
+    bool lookupSymbol(std::string, SymbolTableIt& it);
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
 
     bool typemark();
