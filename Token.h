@@ -43,7 +43,8 @@ class Token
       CLOSEPAREN,
       QUOTE,
       COMMA,
-      COLON
+      COLON,
+      SEMICOLON
     };
 
     const char* getString() const { return mString; }

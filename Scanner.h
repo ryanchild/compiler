@@ -37,6 +37,7 @@ class Scanner
       EXCLAMATION,
       LOGICALOP,
       COLON,
+      SEMICOLON,
       COMMA,
       OTHER
     };

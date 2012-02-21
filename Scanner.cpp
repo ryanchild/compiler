@@ -59,6 +59,7 @@ bool Scanner::initialize()
   mStrings["\""]        = Token::QUOTE;
   mStrings[","]         = Token::COMMA; 
   mStrings[":"]         = Token::COLON;
+  mStrings[";"]         = Token::SEMICOLON;
 
   mFile = fopen(mFilename.c_str(), "r");
   return mFile != NULL;
@@ -123,6 +124,7 @@ bool Scanner::scan(Token& tok)
       case BRACKET:
       case LOGICALOP:
       case COMMA:
+      case SEMICOLON:
       {
         ostringstream s;
         s << (char)c;
@@ -318,7 +320,7 @@ const Scanner::charclass Scanner::charclasses[128] = {
   DIGIT,        // 8
   DIGIT,        // 9
   COLON,        // :
-  OTHER,        // ;
+  SEMICOLON,    // ;
   LT,           // <
   EQUALS,       // =
   GT,           // >
