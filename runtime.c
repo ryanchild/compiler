@@ -5,6 +5,7 @@
 
 int MM[MM_SIZE];
 int R[R_SIZE];
+int SP;
 
 bool getBool()
 {

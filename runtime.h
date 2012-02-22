@@ -3,6 +3,7 @@
 
 extern int MM[MM_SIZE];
 extern int R[R_SIZE];
+extern int SP;
 
 extern bool getBool();
 extern int getInt();

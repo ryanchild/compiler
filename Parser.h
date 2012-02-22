@@ -141,7 +141,7 @@ class Parser
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
 
     bool typemark(datatype&);
-    bool variabledecl(datatype);
+    bool variabledecl(datatype, SymbolType&);
     bool declaration();
     bool ifstatement();
     bool loopstatement();
