@@ -232,7 +232,7 @@ bool Parser::argumentlist(std::vector<SymbolType>& args)
   mIsArray = false;
   if(expression(dt))
   {
-      args.push_back(SymbolType(mIsArray ? ARRAY : SCALAR, dt));
+    args.push_back(SymbolType(mIsArray ? ARRAY : SCALAR, dt));
     if(nextTokenIs(Token::COMMA))
     {
       if(!argumentlist(args))
