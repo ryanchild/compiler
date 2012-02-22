@@ -1,5 +1,10 @@
+#include "runtime.h"
 #include "stdio.h"
 #include "math.h"
+#include "stdbool.h"
+
+int MM[MM_SIZE];
+int R[R_SIZE];
 
 bool getBool()
 {
@@ -49,9 +54,4 @@ int putString(const char* s)
 {
   printf("%s",s);
   return 0;
-}
-
-int sqrt(int i)
-{
-  return sqrt(i);
 }

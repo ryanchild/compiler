@@ -4,15 +4,18 @@
 #include "Token.h"
 #include <map>
 #include <vector>
+#include <fstream>
 
 class Scanner;
 
 class Parser
 {
   public:
-    Parser(Scanner* s);
+    Parser(Scanner*, const char*);
     bool parse();
     void initialize();
+    void initializeFileGen();
+    void initializeSymbolTable();
 
     enum datatype
     {
@@ -137,8 +140,8 @@ class Parser
     bool lookupSymbol(std::string, SymbolTableIt& it);
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
 
-    bool typemark();
-    bool variabledecl();
+    bool typemark(datatype&);
+    bool variabledecl(datatype);
     bool declaration();
     bool ifstatement();
     bool loopstatement();
@@ -159,8 +162,8 @@ class Parser
     bool statement();
     bool functionbody();
     bool parameterlist(std::vector<SymbolType>&);
-    bool functionheader(bool global=false);
-    bool functiondecl(bool global=false);
+    bool functionheader(datatype dt, bool global=false);
+    bool functiondecl(datatype dt, bool global=false);
 
     Scanner* mScanner;
     Token mTok;
@@ -170,6 +173,7 @@ class Parser
     long mCurrentAddr;
     // hack to allow arrays as an expression
     bool mIsArray;
+    std::ofstream mGenFile;
 
     SymbolTable mGlobalSymbols;
     std::vector<SymbolTable> mLocalSymbols;

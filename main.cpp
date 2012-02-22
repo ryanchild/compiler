@@ -1,5 +1,5 @@
-#include <string.h>
-#include <errno.h>
+#include <cstring>
+#include <cerrno>
 #include <iostream>
 
 #include "Parser.h"
@@ -19,6 +19,11 @@ int main(int argc, char** argv)
   else
     filename = argv[1];
 
+  // get the file base
+  string genfile = 
+    filename.substr(0, int( strrchr(filename.c_str(), '.') - filename.c_str()));
+  genfile += ".c";
+
   Scanner s(filename.c_str());
   if(!s.initialize())
   {
@@ -26,7 +31,7 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  Parser p(&s);
+  Parser p(&s, genfile.c_str());
   p.initialize();
   if(p.parse())
     cout << "successfully parsed " << filename << endl;

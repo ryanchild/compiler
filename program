@@ -1,12 +1,14 @@
 // meaningless test program for fake programming language
 
 integer function main()
-  integer a;
+  boolean a; 
+  boolean d;
+  integer b;
   string c;
 
 begin
 
-  a := 5;
+  a := a == d;
 
-  main := a;
+  main := b;
 end function

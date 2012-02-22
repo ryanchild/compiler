@@ -7,17 +7,30 @@
 #include "Scanner.h"
 #include "Token.h"
 
-Parser::Parser(Scanner* s)
+Parser::Parser(Scanner* s, const char* genfile)
   :mScanner(s)
   ,mPreScanned(false)
   ,mError(false)
   ,mLevel(-1)
   ,mCurrentAddr(0)
   ,mIsArray(false)
+  ,mGenFile(genfile)
   ,mLocalSymbols(0)
 {}
 
 void Parser::initialize()
+{
+  initializeFileGen();
+  initializeSymbolTable();
+}
+
+void Parser::initializeFileGen()
+{
+  mGenFile << "include \"runtime.h\"" << std::endl;
+
+}
+
+void Parser::initializeSymbolTable()
 {
   std::vector<SymbolType> params;
   params.resize(0);
@@ -80,22 +93,26 @@ bool Parser::lookupSymbol(std::string id, SymbolTableIt& it)
     it = mGlobalSymbols.find(id);
   else 
     return true;
-  return (it == mGlobalSymbols.end());
+  return (it != mGlobalSymbols.end());
 }
 
-bool Parser::typemark()
+bool Parser::typemark(datatype& dt)
 {
-  return nextTokenIs(Token::INTEGER) ||
-         nextTokenIs(Token::FLOAT) ||
-         nextTokenIs(Token::BOOLEAN) ||
-         nextTokenIs(Token::STRING);
+  if(nextTokenIs(Token::INTEGER))
+    dt = INTEGER;
+  else if(nextTokenIs(Token::FLOAT))
+    dt = FLOAT;
+  else if(nextTokenIs(Token::BOOLEAN))
+    dt = BOOLEAN;
+  else if(nextTokenIs(Token::STRING))
+    dt = STRING;
+  else
+    return false;
+  return true;
 }
 
-bool Parser::variabledecl()
+bool Parser::variabledecl(datatype dt)
 {
-  Token::tokentype tt = mTok.getType();
-  datatype dt = tokenTypeToDataType(tt);
-                
   if(nextTokenIs(Token::IDENTIFIER))
   {
     const char* id = mTok.getString();
@@ -136,8 +153,9 @@ bool Parser::declaration()
     }
   }
 
-  if(typemark())
-    return functiondecl(global) || variabledecl();
+  datatype dt;
+  if(typemark(dt))
+    return functiondecl(dt, global) || variabledecl(dt);
   return false;
 }
 
@@ -263,6 +281,8 @@ bool Parser::factor(datatype& dt)
       // hack to allow arrays as expression
       if(it->second.getStructureType() == ARRAY)
         mIsArray = true;
+
+      return true;
     }
   }
 
@@ -309,6 +329,7 @@ bool Parser::term(datatype& dt)
     if(term2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
+      mError = true;
       return false;
     }
     dt = dt1;
@@ -326,6 +347,7 @@ bool Parser::term2(datatype& dt)
     if(!lastterm && !arithOpCompatible(dt, dt2))
     {
       //TODO: report type check error
+      mError = true;
       return false;
     }
     return true;
@@ -353,17 +375,18 @@ bool Parser::relation(datatype& dt)
 bool Parser::relation2(datatype& dt)
 {
   datatype dt2;
-  if((nextTokenIs(Token::LTE)) ||
-     (nextTokenIs(Token::LT)) ||
-     (nextTokenIs(Token::GTE)) ||
-     (nextTokenIs(Token::GT)) ||
-     (nextTokenIs(Token::EQUAL)) ||
-     (nextTokenIs(Token::NOTEQUAL)) && term(dt))
+  if((nextTokenIs(Token::LTE) ||
+      nextTokenIs(Token::LT) ||
+      nextTokenIs(Token::GTE) ||
+      nextTokenIs(Token::GT) ||
+      nextTokenIs(Token::EQUAL) ||
+      nextTokenIs(Token::NOTEQUAL)) && term(dt))
   {
     bool lastrelation = relation2(dt2);
     if(!lastrelation && !relationalOpCompatible(dt, dt2))
     {
       //TODO: report type check error
+      mError = true;
       return false;
     }
     return true;
@@ -380,6 +403,7 @@ bool Parser::arithop(datatype& dt)
     if(arithop2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
+      mError = true;
       return false;
     }
     dt = dt1;
@@ -397,9 +421,11 @@ bool Parser::arithop2(datatype& dt)
     bool lastop = arithop2(dt2);
     if(!lastop && !arithOpCompatible(dt, dt2))
     {
+      //TODO: report type check error
+      mError = true;
       return false;
     }
-    return !mError;
+    return true;
   }
 
   return false;
@@ -415,11 +441,12 @@ bool Parser::expression(datatype& dt)
     if(expression2(dt2) && (dt1 != dt2 || mIsArray))
     {
       //TODO: report type check error
+      mError = true;
       return false;
     }
     dt = dt1;
     mIsArray = false;
-    return true;
+    return !mError;
   }
   return false;
 }
@@ -516,20 +543,18 @@ bool Parser::functionbody()
 
 bool Parser::parameterlist(std::vector<SymbolType>& params)
 {
-  if(typemark() && variabledecl() && nextTokenIs(Token::COMMA))
+  datatype dt;
+  if(typemark(dt) && variabledecl(dt) && nextTokenIs(Token::COMMA))
       parameterlist(params);
   return true;
 }
 
-bool Parser::functionheader(bool global/* = false*/)
+bool Parser::functionheader(datatype dt, bool global/* = false*/)
 {
-  datatype dt = tokenTypeToDataType(mTok.getType());
-
   bool isFunctionHeader = nextTokenIs(Token::FUNCTION) &&
                           nextTokenIs(Token::IDENTIFIER);
-  char* id = NULL;
-  if(isFunctionHeader)
-    id = const_cast<char*>(mTok.getString());
+
+  const char* id = mTok.getString();
 
   isFunctionHeader = isFunctionHeader && nextTokenIs(Token::OPENPAREN);
   if(isFunctionHeader)
@@ -548,11 +573,11 @@ bool Parser::functionheader(bool global/* = false*/)
   return isFunctionHeader;
 }
 
-bool Parser::functiondecl(bool global/* = false*/)
+bool Parser::functiondecl(datatype dt, bool global/* = false*/)
 {
   mLevel++;
   mLocalSymbols.push_back(SymbolTable());
-  bool isFunctionDecl = functionheader(global) && functionbody();
+  bool isFunctionDecl = functionheader(dt, global) && functionbody();
   mLocalSymbols.pop_back();
   mLevel--;
   return isFunctionDecl;
@@ -560,5 +585,6 @@ bool Parser::functiondecl(bool global/* = false*/)
 
 bool Parser::parse()
 {
-  return typemark() && functiondecl(true);
+  datatype dt;
+  return typemark(dt) && functiondecl(dt, true);
 }
