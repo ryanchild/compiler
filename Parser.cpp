@@ -111,7 +111,7 @@ bool Parser::typemark(datatype& dt)
   return true;
 }
 
-bool Parser::variabledecl(datatype dt, SymbolType& st)
+bool Parser::variabledecl(int addr, datatype dt, SymbolType& st)
 {
   if(nextTokenIs(Token::IDENTIFIER))
   {
@@ -127,20 +127,20 @@ bool Parser::variabledecl(datatype dt, SymbolType& st)
       if(nextTokenIs(Token::CLOSESQUARE))
       {
         st = SymbolType(ARRAY, dt, size);
-        localSymbolTable()[id] = Symbol(id, st, mCurrentAddr++);
+        localSymbolTable()[id] = Symbol(id, st, addr);
         return true;
       }
       return false;
     }
 
     st = SymbolType(SCALAR, dt);
-    localSymbolTable()[id] = Symbol(id, st, mCurrentAddr++);
+    localSymbolTable()[id] = Symbol(id, st, addr);
     return true;
   }
   return false;
 }
 
-bool Parser::declaration()
+bool Parser::declaration(int addr, SymbolType& st)
 {
   bool global = false;
   if(nextTokenIs(Token::GLOBAL))
@@ -154,9 +154,8 @@ bool Parser::declaration()
   }
 
   datatype dt;
-  SymbolType st;
   if(typemark(dt))
-    return functiondecl(dt, global) || variabledecl(dt, st);
+    return functiondecl(addr, dt, global) || variabledecl(addr, dt, st);
   return false;
 }
 
@@ -233,15 +232,13 @@ bool Parser::argumentlist(std::vector<SymbolType>& args)
   if(expression(dt))
   {
     args.push_back(SymbolType(mIsArray ? ARRAY : SCALAR, dt));
-    if(nextTokenIs(Token::COMMA))
+    if(nextTokenIs(Token::COMMA) && !argumentlist(args))
     {
-      if(!argumentlist(args))
-      {
-        mError = true;
-        return false;
-      }
-    return true;
+      //TODO: error reporting
+      mError = true;
+      return false;
     }
+    return true;
   }
   return false;
 }
@@ -533,10 +530,19 @@ bool Parser::statement()
 
 bool Parser::functionbody()
 {
-  while(declaration())
+  int addr = 0;
+  SymbolType st;
+  while(declaration(addr, st))
   {
     if(!nextTokenIs(Token::SEMICOLON))
       return false;
+    else
+    {
+      if(st.getStructureType() == ARRAY)
+        addr += st.getSize();
+      else
+        addr++;
+    }
   }
   if(nextTokenIs(Token::BEGIN))
   {
@@ -551,21 +557,30 @@ bool Parser::functionbody()
   return false;
 }
 
-bool Parser::parameterlist(std::vector<SymbolType>& params)
+bool Parser::parameterlist(std::vector<SymbolType>& params, int addr/*=-1*/)
 {
   datatype dt;
   SymbolType st;
-  if(typemark(dt) && variabledecl(dt, st))
+  if(typemark(dt) && variabledecl(addr, dt, st))
   {
+    if(st.getStructureType() == ARRAY)
+      addr -= st.getSize();
+    else
+      addr--;
+
     params.push_back(st);
-    if(nextTokenIs(Token::COMMA))
-      return parameterlist(params);
+    if(nextTokenIs(Token::COMMA) && !parameterlist(params,addr))
+    {
+      //TODO: error reporting
+      mError = true;
+      return false;
+    }
     return true;
   }
   return false;
 }
 
-bool Parser::functionheader(datatype dt, bool global/* = false*/)
+bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
 {
   bool isFunctionHeader = nextTokenIs(Token::FUNCTION) &&
                           nextTokenIs(Token::IDENTIFIER);
@@ -576,24 +591,23 @@ bool Parser::functionheader(datatype dt, bool global/* = false*/)
   if(isFunctionHeader)
   {
     std::vector<SymbolType> params;
-    isFunctionHeader = parameterlist(params) &&
-                       nextTokenIs(Token::CLOSEPAREN);
-    if(isFunctionHeader)
+    parameterlist(params);
+    if(nextTokenIs(Token::CLOSEPAREN))
     {
       SymbolTable& st = global ? mGlobalSymbols : localSymbolTable();
       st[id] = Symbol(id,
                       SymbolType(FUNCTION, dt, 0, params),
-                      mCurrentAddr++);
+                      addr);
     }
   }
   return isFunctionHeader;
 }
 
-bool Parser::functiondecl(datatype dt, bool global/* = false*/)
+bool Parser::functiondecl(int addr, datatype dt, bool global/* = false*/)
 {
   mLevel++;
   mLocalSymbols.push_back(SymbolTable());
-  bool isFunctionDecl = functionheader(dt, global) && functionbody();
+  bool isFunctionDecl = functionheader(addr, dt, global) && functionbody();
   mLocalSymbols.pop_back();
   mLevel--;
   return isFunctionDecl;
@@ -608,7 +622,7 @@ bool Parser::parse()
            << "SP = 1024;" << std::endl;
 
   datatype dt;
-  bool success = typemark(dt) && functiondecl(dt, true);
+  bool success = typemark(dt) && functiondecl(0, dt, true);
 
   mGenFile << "}" << std::endl;
   return success;

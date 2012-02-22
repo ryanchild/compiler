@@ -69,6 +69,7 @@ class Parser
         void setDataType(datatype dt) { mDt = dt; }
         datatype getDataType() const { return mDt; }
         structuretype getStructureType() const { return mSt; }
+        int getSize() const { return mSize; }
 
       private:
         structuretype mSt;
@@ -141,8 +142,8 @@ class Parser
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
 
     bool typemark(datatype&);
-    bool variabledecl(datatype, SymbolType&);
-    bool declaration();
+    bool variabledecl(int, datatype, SymbolType&);
+    bool declaration(int, SymbolType&);
     bool ifstatement();
     bool loopstatement();
     bool functioncall();
@@ -161,9 +162,9 @@ class Parser
     bool assignmentstatement();
     bool statement();
     bool functionbody();
-    bool parameterlist(std::vector<SymbolType>&);
-    bool functionheader(datatype dt, bool global=false);
-    bool functiondecl(datatype dt, bool global=false);
+    bool parameterlist(std::vector<SymbolType>&, int addr=-1);
+    bool functionheader(int addr, datatype dt, bool global=false);
+    bool functiondecl(int addr, datatype dt, bool global=false);
 
     Scanner* mScanner;
     Token mTok;
