@@ -6,6 +6,9 @@
 int MM[MM_SIZE];
 int R[R_SIZE];
 int SP;
+int TMP_INT;
+int TMP_FLOAT;
+char* TMP_STRING[256];
 
 bool getBool()
 {

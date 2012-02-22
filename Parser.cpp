@@ -7,6 +7,8 @@
 #include "Scanner.h"
 #include "Token.h"
 
+using namespace std;
+
 Parser::Parser(Scanner* s, const char* genfile)
   :mScanner(s)
   ,mPreScanned(false)
@@ -15,58 +17,107 @@ Parser::Parser(Scanner* s, const char* genfile)
   ,mCurrentAddr(0)
   ,mIsArray(false)
   ,mGenFile(genfile)
+  ,mTopLevelFunction(NULL)
   ,mLocalSymbols(0)
 {}
 
 void Parser::initialize()
 {
-  initializeFileGen();
-  initializeSymbolTable();
-}
-
-void Parser::initializeFileGen()
-{
-  mGenFile << "include \"runtime.h\"" << std::endl;
-
-}
-
-void Parser::initializeSymbolTable()
-{
-  std::vector<SymbolType> params;
+  vector<SymbolType> params;
   params.resize(0);
+
+  mGenFile << "include \"runtime.h\"" << endl;
   mGlobalSymbols["getBool"] = Symbol("getBool",
                                      SymbolType(FUNCTION, BOOLEAN),
                                      mCurrentAddr++);
+  mGenFile << "getBool:" << endl
+           << "R[0] = (void*)getBool();" << endl
+           << "R[1] = MM[SP];" << endl
+           << "MM[SP] = R[0];" << endl
+           << "goto *R[1];" << endl << endl;
+
   mGlobalSymbols["getInt"] = Symbol("getInt",
                                     SymbolType(FUNCTION, INTEGER),
                                     mCurrentAddr++);
+  mGenFile << "getInt:" << endl
+           << "TMP_INT = getInt();" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "goto *R[1];" << endl << endl;
+
   mGlobalSymbols["getString"] = Symbol("getString",
                                        SymbolType(FUNCTION, STRING),
                                        mCurrentAddr++);
+  mGenFile << "getString:" << endl
+           << "getString(TMP_STRING);" << endl
+           << "R[0] = (void*)TMP_STRING;" << endl
+           << "R[1] = MM[SP];" << endl
+           << "MM[SP] = R[0];" << endl
+           << "goto *R[1];" << endl << endl;
+
   mGlobalSymbols["getFloat"] = Symbol("getFloat",
                                       SymbolType(FUNCTION, FLOAT),
                                       mCurrentAddr++);
+  mGenFile << "getFloat:" << endl
+           << "TMP_FLOAT = getFloat();" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
+           << "goto *R[1];" << endl << endl;
 
   params.resize(1);
   params[0] = SymbolType(SCALAR, BOOLEAN);
   mGlobalSymbols["putBool"] = Symbol("putBool",
                                      SymbolType(FUNCTION, INTEGER, 0, params),
                                      mCurrentAddr++);
+  mGenFile << "putBool:" << endl
+           << "R[0] = MM[SP - 1];" << endl
+           << "TMP_INT = (int)putBool((bool)R[0]);" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "goto *R[1];" << endl << endl;
+
   params[0].setDataType(INTEGER);
   mGlobalSymbols["putInt"] = Symbol("putInt",
                                     SymbolType(FUNCTION, INTEGER, 0, params),
                                     mCurrentAddr++);
+  mGenFile << "putInt:" << endl
+           << "memcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
+           << "TMP_INT = putInt(TMP_INT);" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "goto *R[1];" << endl << endl;
+
   mGlobalSymbols["sqrt"] = Symbol("sqrt",
                                   SymbolType(FUNCTION, FLOAT, 0, params),
                                   mCurrentAddr++);
+  mGenFile << "sqrt:" << endl
+           << "memcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
+           << "TMP_FLOAT = sqrt(TMP_INT);" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
+           << "goto *R[1];" << endl << endl;
+
   params[0].setDataType(STRING);
   mGlobalSymbols["putString"] = Symbol("putString",
                                        SymbolType(FUNCTION, INTEGER, 0, params),
                                        mCurrentAddr++);
+  mGenFile << "putString:" << endl
+           << "R[0] = MM[SP - 1];" << endl
+           << "TMP_INT = putString((char*)R[0]);" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "goto *R[1];" << endl << endl;
+
   params[0].setDataType(FLOAT);
   mGlobalSymbols["putFloat"] = Symbol("putFloat",
                                       SymbolType(FUNCTION, INTEGER, 0, params),
                                       mCurrentAddr++);
+  mGenFile << "putFloat:" << endl
+           << "memcpy(&TMP_FLOAT, MM[SP - 1], sizeof(float));" << endl
+           << "TMP_INT = putFloat(TMP_FLOAT);" << endl
+           << "R[1] = MM[SP];" << endl
+           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "goto *R[1];" << endl << endl;
 }
 
 Token Parser::nextToken()
@@ -86,7 +137,7 @@ bool Parser::nextTokenIs(Token::tokentype tt)
   return false;
 }
 
-bool Parser::lookupSymbol(std::string id, SymbolTableIt& it)
+bool Parser::lookupSymbol(string id, SymbolTableIt& it)
 {
   it = localSymbolTable().find(id);
   if(it == localSymbolTable().end())
@@ -216,7 +267,7 @@ bool Parser::loopstatement()
 
 bool Parser::functioncall()
 {
-  std::vector<SymbolType> args;
+  vector<SymbolType> args;
   if(nextTokenIs(Token::OPENPAREN))
   {
     argumentlist(args);
@@ -225,7 +276,7 @@ bool Parser::functioncall()
   return false;
 }
 
-bool Parser::argumentlist(std::vector<SymbolType>& args)
+bool Parser::argumentlist(vector<SymbolType>& args)
 {
   datatype dt;
   mIsArray = false;
@@ -557,7 +608,7 @@ bool Parser::functionbody()
   return false;
 }
 
-bool Parser::parameterlist(std::vector<SymbolType>& params, int addr/*=-1*/)
+bool Parser::parameterlist(vector<SymbolType>& params, int addr/*=-1*/)
 {
   datatype dt;
   SymbolType st;
@@ -590,7 +641,7 @@ bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
   isFunctionHeader = isFunctionHeader && nextTokenIs(Token::OPENPAREN);
   if(isFunctionHeader)
   {
-    std::vector<SymbolType> params;
+    vector<SymbolType> params;
     parameterlist(params);
     if(nextTokenIs(Token::CLOSEPAREN))
     {
@@ -598,6 +649,9 @@ bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
       st[id] = Symbol(id,
                       SymbolType(FUNCTION, dt, 0, params),
                       addr);
+
+      if(mLevel == 0)
+        mTopLevelFunction = const_cast<char*>(id);
     }
   }
   return isFunctionHeader;
@@ -615,15 +669,24 @@ bool Parser::functiondecl(int addr, datatype dt, bool global/* = false*/)
 
 bool Parser::parse()
 {
-  mGenFile << "include \"runtime.h\"" << std::endl
-           << std::endl
-           << "int main()" << std::endl
-           << "{" << std::endl
-           << "SP = 1024;" << std::endl;
+  mGenFile << "#include \"runtime.h\"" << endl
+           << "#include \"stdbool.h\"" << endl
+           << "#include \"math.h\"" << endl
+           << endl;
+
+  initialize();
 
   datatype dt;
   bool success = typemark(dt) && functiondecl(0, dt, true);
 
-  mGenFile << "}" << std::endl;
+  mGenFile << "int main()" << endl
+           << "{" << endl
+           << "\tSP = 1024;" << endl
+           << "\tMM[SP] = &&_end;" << endl
+           << "\tgoto " << mTopLevelFunction << ";" << endl
+           << "_end:" << endl
+           << "\treturn 0;" << endl
+           << "}" << endl;
+
   return success;
 }

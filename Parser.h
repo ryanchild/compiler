@@ -14,8 +14,6 @@ class Parser
     Parser(Scanner*, const char*);
     bool parse();
     void initialize();
-    void initializeFileGen();
-    void initializeSymbolTable();
 
     enum datatype
     {
@@ -175,6 +173,7 @@ class Parser
     // hack to allow arrays as an expression
     bool mIsArray;
     std::ofstream mGenFile;
+    char* mTopLevelFunction;
 
     SymbolTable mGlobalSymbols;
     std::vector<SymbolTable> mLocalSymbols;

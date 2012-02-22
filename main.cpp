@@ -32,7 +32,6 @@ int main(int argc, char** argv)
   }
 
   Parser p(&s, genfile.c_str());
-  p.initialize();
   if(p.parse())
     cout << "successfully parsed " << filename << endl;
   else
