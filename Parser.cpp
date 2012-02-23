@@ -14,12 +14,19 @@ Parser::Parser(Scanner* s, const char* genfile)
   ,mPreScanned(false)
   ,mError(false)
   ,mLevel(-1)
+  ,mFunctionCallCounter(0)
   ,mCurrentAddr(0)
+  ,mReg(0)
   ,mIsArray(false)
   ,mGenFile(genfile)
-  ,mTopLevelFunction(NULL)
+  ,mCurrentFunction(NULL)
   ,mLocalSymbols(0)
 {}
+
+Parser::~Parser()
+{
+  mGenFile.close();
+}
 
 void Parser::initialize()
 {
@@ -30,18 +37,19 @@ void Parser::initialize()
                                      SymbolType(FUNCTION, BOOLEAN),
                                      mCurrentAddr++);
   mGenFile << "getBool:" << endl
-           << "\tR[0] = (void*)getBool();" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tMM[SP] = R[0];" << endl
+           << "\tR[0] = (size_t)getBool();" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[0];" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getInt"] = Symbol("getInt",
                                     SymbolType(FUNCTION, INTEGER),
                                     mCurrentAddr++);
   mGenFile << "getInt:" << endl
-           << "\tTMP_INT = getInt();" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tR[0] = getInt();" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[0];" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getString"] = Symbol("getString",
@@ -49,9 +57,8 @@ void Parser::initialize()
                                        mCurrentAddr++);
   mGenFile << "getString:" << endl
            << "\tgetString(TMP_STRING);" << endl
-           << "\tR[0] = (void*)TMP_STRING;" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tMM[SP] = R[0];" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = (size_t)TMP_STRING;" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getFloat"] = Symbol("getFloat",
@@ -59,8 +66,8 @@ void Parser::initialize()
                                       mCurrentAddr++);
   mGenFile << "getFloat:" << endl
            << "\tTMP_FLOAT = getFloat();" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tmemcpy(&MM[R[SP]], &TMP_FLOAT, sizeof(float));" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   params.resize(1);
@@ -69,10 +76,10 @@ void Parser::initialize()
                                      SymbolType(FUNCTION, INTEGER, 0, params),
                                      mCurrentAddr++);
   mGenFile << "putBool:" << endl
-           << "\tR[0] = MM[SP - 1];" << endl
-           << "\tTMP_INT = (int)putBool((bool)R[0]);" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tR[0] = MM[R[SP] - 1];" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tR[2] = putBool((bool)R[0]);" << endl
+           << "\tMM[R[SP]] = R[2];" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   params[0].setDataType(INTEGER);
@@ -80,20 +87,20 @@ void Parser::initialize()
                                     SymbolType(FUNCTION, INTEGER, 0, params),
                                     mCurrentAddr++);
   mGenFile << "putInt:" << endl
-           << "\tmemcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
-           << "\tTMP_INT = putInt(TMP_INT);" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tR[0] = MM[R[SP] - 1];" << endl
+           << "\tR[0] = putInt(R[0]);" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[0];" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["sqrt"] = Symbol("sqrt",
                                   SymbolType(FUNCTION, FLOAT, 0, params),
                                   mCurrentAddr++);
   mGenFile << "sqrt:" << endl
-           << "\tmemcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
-           << "\tTMP_FLOAT = sqrt(TMP_INT);" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
+           << "\tR[0] = MM[R[SP] - 1];" << endl
+           << "\tTMP_FLOAT = sqrt(R[0]);" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tmemcpy(&MM[R[SP]], &TMP_FLOAT, sizeof(float));" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   params[0].setDataType(STRING);
@@ -101,10 +108,10 @@ void Parser::initialize()
                                        SymbolType(FUNCTION, INTEGER, 0, params),
                                        mCurrentAddr++);
   mGenFile << "putString:" << endl
-           << "\tR[0] = MM[SP - 1];" << endl
-           << "\tTMP_INT = putString((char*)R[0]);" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tR[0] = MM[R[SP] - 1];" << endl
+           << "\tR[0] = putString((char*)R[0]);" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[0];" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   params[0].setDataType(FLOAT);
@@ -112,10 +119,10 @@ void Parser::initialize()
                                       SymbolType(FUNCTION, INTEGER, 0, params),
                                       mCurrentAddr++);
   mGenFile << "putFloat:" << endl
-           << "\tmemcpy(&TMP_FLOAT, MM[SP - 1], sizeof(float));" << endl
-           << "\tTMP_INT = putFloat(TMP_FLOAT);" << endl
-           << "\tR[1] = MM[SP];" << endl
-           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tmemcpy(&TMP_FLOAT, &MM[R[SP] - 1], sizeof(float));" << endl
+           << "\tR[0] = putFloat(TMP_FLOAT);" << endl
+           << "\tR[1] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[0];" << endl
            << "\tgoto *R[1];" << endl << endl;
 }
 
@@ -136,14 +143,28 @@ bool Parser::nextTokenIs(Token::tokentype tt)
   return false;
 }
 
-bool Parser::lookupSymbol(string id, SymbolTableIt& it)
+bool Parser::lookupSymbol(string id, SymbolTableIt& it, bool& global)
 {
+  global = true;
   it = localSymbolTable().find(id);
   if(it == localSymbolTable().end())
     it = mGlobalSymbols.find(id);
   else 
+  {
+    global = false;
     return true;
+  }
   return (it != mGlobalSymbols.end());
+}
+
+void Parser::getMemoryLocation(int spOffset, bool hasIndex)
+{
+  mReg++;
+  mGenFile << "\tR[" << mReg << "] = " << spOffset << ";" << endl 
+           << "\tR[" << mReg << "] = R[" << mReg << "] + R[SP];" << endl;
+  if(hasIndex)
+    mGenFile << "\tR[" << mReg << "] = R["
+             << mReg << "] + R[" << mReg - 1 << "];" << endl;
 }
 
 bool Parser::typemark(datatype& dt)
@@ -266,6 +287,7 @@ bool Parser::loopstatement()
 
 bool Parser::functioncall()
 {
+  const char* id = mTok.getString();
   vector<SymbolType> args;
   if(nextTokenIs(Token::OPENPAREN))
   {
@@ -293,7 +315,7 @@ bool Parser::argumentlist(vector<SymbolType>& args)
   return false;
 }
 
-bool Parser::name()
+bool Parser::name(bool& hasIndex)
 {
   datatype dt;
   if(nextTokenIs(Token::OPENSQUARE) &&
@@ -304,6 +326,9 @@ bool Parser::name()
       //TODO: throw type check error
       return false;
     }
+    mGenFile << "R[" << ++mReg << "] = R[" << mReg - 1 << "];" << endl;
+    hasIndex = true;
+
     if(nextTokenIs(Token::CLOSESQUARE))
       return true;
   }
@@ -326,18 +351,48 @@ bool Parser::factor(datatype& dt)
   if(nextTokenIs(Token::IDENTIFIER))
   {
     const char* id = mTok.getString();
-    if(functioncall() || name())
+    bool hasIndex = false;
+    bool isFunctionCall = functioncall();
+    if(isFunctionCall || name(hasIndex))
     {
       SymbolTableIt it;
-      if(!lookupSymbol(id, it))
+      bool global = false;
+      if(!lookupSymbol(id, it, global))
       {
         //TODO: throw symbol not found error
         return false;
       }
       dt = it->second.getDataType();
 
+      if(global)
+      {
+        mReg++;
+        mGenFile << "\tR[" << mReg << "] = " << it->second.getAddr() << ";"
+                 << endl;
+      }
+      else
+        getMemoryLocation(it->second.getAddr(), hasIndex);
+
+      mReg++;
+      mGenFile << "\tR[" << mReg << "] = MM[R[" << mReg - 1 << "]];"
+               << endl;
+
+      if(isFunctionCall)
+      {
+        mReg++;
+        mGenFile << "\tR[" << mReg << "] = (size_t)&&" << id
+                 << mFunctionCallCounter << ";" << endl
+                 << "\tMM[R[SP]] = R[" << mReg << "];" << endl
+                 << "\tR[SP] = R[SP] + 1;" << endl
+                 << "\tgoto *(void*)R[" << mReg - 1 << "];" << endl
+                 << id << mFunctionCallCounter << ":" << endl;
+        mReg++;
+        mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl;
+        mFunctionCallCounter++;
+      }
+
       // hack to allow arrays as expression
-      if(it->second.getStructureType() == ARRAY)
+      if(it->second.getStructureType() == ARRAY && !hasIndex)
         mIsArray = true;
 
       return true;
@@ -350,30 +405,73 @@ bool Parser::factor(datatype& dt)
     if(nextTokenIs(Token::IDENTIFIER))
     {
       const char* id = mTok.getString();
-      if(name())
+      bool hasIndex;
+      if(name(hasIndex))
       {
         SymbolTableIt it;
-        if(!lookupSymbol(id, it))
+        bool global;
+        if(!lookupSymbol(id, it, global))
         {
           //TODO: throw symbol not found error
           return false;
         }
         dt = it->second.getDataType();
+        if(it->second.getStructureType() == ARRAY && !hasIndex)
+        {
+          //TODO: error, need index here
+          return false;
+        }
+        getMemoryLocation(it->second.getAddr(), hasIndex);
+        mReg++;
+        mGenFile << "\tR[" << mReg << "] = MM[R[" << mReg - 1 << "]];"
+                 << endl;
       }
     }
     else if(nextTokenIs(Token::NUMBER))
+    {
       dt = getNumberType();
+      if(dt == INTEGER)
+        mGenFile << "\tR[" << ++mReg << "] = ";
+      else
+        mGenFile << "\tTMP_FLOAT = ";
+      mGenFile << mTok.getString() << ";" << endl;
+      if(dt == FLOAT)
+        mGenFile << "\tmemcpy(&R[" << ++mReg << "], &TMP_FLOAT, sizeof(float));"
+                 << endl;
+    }
     else
       return false;
+
+    mGenFile << "\tR[" << ++mReg << "] = 0;" << endl
+             << "\tR[" << ++mReg << "] = R[" << mReg - 1
+             << "] - R[" << mReg - 2 << "];" << endl;
     return true;
   }
 
   if(nextTokenIs(Token::NUMBER))
+  {
     dt = getNumberType();
+    if(dt == INTEGER)
+      mGenFile << "\tR[" << ++mReg << "] = ";
+    else
+      mGenFile << "\tTMP_FLOAT = ";
+    mGenFile << mTok.getString() << ";" << endl;
+    if(dt == FLOAT)
+      mGenFile << "\tmemcpy(&R[" << ++mReg << "], &TMP_FLOAT, sizeof(float));"
+               << endl;
+  }
   else if(nextTokenIs(Token::STRING))
+  {
     dt = STRING;
+    mGenFile << "\tR[" << ++mReg << "] = " << mTok.getString() << ";" << endl;
+  }
   else if(nextTokenIs(Token::TRUE) || nextTokenIs(Token::FALSE))
+  {
     dt = BOOLEAN;
+    mGenFile << "\tR[" << ++mReg << "] = "
+             << (mTok.getType() == Token::TRUE ? "true" : "false") << ";" 
+             << endl;
+  }
   else
     return false;
   return true;
@@ -545,7 +643,8 @@ bool Parser::destination(SymbolTableIt& it)
           return false;
       }
     }
-    if(!lookupSymbol(id, it))
+    bool global;
+    if(!lookupSymbol(id, it, global))
     {
       //TODO: error symbol not found
       return false;
@@ -566,6 +665,22 @@ bool Parser::assignmentstatement()
       //TODO: throw type error
       return false;
     }
+    int result = mReg;
+    if(!strcmp(s->second.getID(), mCurrentFunction))
+    {
+      mGenFile << "\tR[SP] = R[SP] - 1;" << endl;
+      mReg++;
+      mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl
+               << "\tMM[R[SP]] = R[" << result << "];" << endl
+               << "\tgoto *(void*)R[" << mReg << "];" << endl << endl;
+    }
+    else
+    {
+      getMemoryLocation(s->second.getAddr(), false);
+      int destAddr = mReg;
+      mGenFile << "\tMM[R[" << destAddr << "]] = R[" << result << "];" << endl;
+    }
+
     return true;
   }
   return false;
@@ -596,6 +711,7 @@ bool Parser::functionbody()
   }
   if(nextTokenIs(Token::BEGIN))
   {
+    mReg = 0;
     while(statement())
     {
       if(!nextTokenIs(Token::SEMICOLON))
@@ -645,12 +761,13 @@ bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
     if(nextTokenIs(Token::CLOSEPAREN))
     {
       SymbolTable& st = global ? mGlobalSymbols : localSymbolTable();
+      addr = global ? mCurrentAddr++ : 0;
       st[id] = Symbol(id,
                       SymbolType(FUNCTION, dt, 0, params),
-                      addr);
+                      0);
 
-      if(mLevel == 0)
-        mTopLevelFunction = const_cast<char*>(id);
+      mCurrentFunction = const_cast<char*>(id);
+      mGenFile << id << ":" << endl;
     }
   }
   return isFunctionHeader;
@@ -671,6 +788,7 @@ bool Parser::parse()
   mGenFile << "#include \"stdbool.h\"" << endl
            << "#include \"math.h\"" << endl
            << "#include \"string.h\"" << endl
+           << "#include \"stdio.h\"" << endl
            << "#include \"runtime.h\"" << endl
            << endl
            << "int main()" << endl
@@ -681,13 +799,24 @@ bool Parser::parse()
   initialize();
 
   datatype dt;
-  bool success = typemark(dt) && functiondecl(0, dt, true);
+  bool success = typemark(dt) && functiondecl(0, dt, false);
 
-  mGenFile << "_main:" << endl
-           << "\tSP = 1024;" << endl
-           << "\tMM[SP] = &&_end;" << endl
-           << "\tgoto " << mTopLevelFunction << ";" << endl
+  mGenFile << "_main:" << endl;
+
+  for(SymbolTableIt it(mGlobalSymbols.begin()); it!=mGlobalSymbols.end(); ++it)
+  {
+    if(it->second.getStructureType() == FUNCTION)
+      mGenFile << "\tR[0] = " << it->second.getAddr() << ";" << endl
+               << "\tMM[R[0]] = (size_t)&&" << it->second.getID() << ";" 
+               << endl;
+  }
+
+  mGenFile << "\tR[SP] = 1024;" << endl
+           << "\tMM[R[SP]] = (size_t)&&_end;" << endl
+           << "\tR[SP] = R[SP] + 1;" << endl
+           << "\tgoto " << mCurrentFunction << ";" << endl
            << "_end:" << endl
+           << "\tprintf(\"the program exited with value %d\\n\",MM[R[SP]]);"<< endl
            << "\treturn 0;" << endl
            << "}" << endl;
 

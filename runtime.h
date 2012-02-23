@@ -1,11 +1,10 @@
 #define MM_SIZE 65538
 #define R_SIZE 1024
 
-extern void* MM[MM_SIZE];
-extern void* R[R_SIZE];
-extern int SP;
-extern int TMP_INT;
-extern int TMP_FLOAT;
+extern size_t MM[MM_SIZE];
+extern size_t R[R_SIZE];
+extern const int SP;
+extern float TMP_FLOAT;
 extern char TMP_STRING[256];
 
 extern bool getBool();

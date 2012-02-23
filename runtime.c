@@ -3,11 +3,10 @@
 #include "math.h"
 #include "runtime.h"
 
-void* MM[MM_SIZE];
-void* R[R_SIZE];
-int SP;
-int TMP_INT;
-int TMP_FLOAT;
+size_t MM[MM_SIZE];
+size_t R[R_SIZE];
+const int SP = R_SIZE - 1;
+float TMP_FLOAT;
 char TMP_STRING[256];
 
 bool getBool()

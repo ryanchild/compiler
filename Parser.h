@@ -12,6 +12,7 @@ class Parser
 {
   public:
     Parser(Scanner*, const char*);
+    ~Parser();
     bool parse();
     void initialize();
 
@@ -97,6 +98,7 @@ class Parser
           return mSt.getStructureType(); 
         }
         long getAddr() const { return mAddr; }
+        const char* getID() const { return mId; }
 
       private:
         const char* mId;
@@ -129,15 +131,10 @@ class Parser
       // ints only
       return !(dt1 | dt2);
     }
-    datatype tokenTypeToDataType(Token::tokentype tt)
-    {
-      return tt == Token::INTEGER ? INTEGER :
-             tt == Token::FLOAT ? FLOAT :
-             tt == Token::BOOLEAN ? BOOLEAN : 
-             tt == Token::STRING ? STRING : INTEGER;
-    }
-    bool lookupSymbol(std::string, SymbolTableIt& it);
+    bool lookupSymbol(std::string, SymbolTableIt& it, bool& global);
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
+    // after returning, mReg is the register with the desired address
+    void getMemoryLocation(int spOffset, bool hasIndex);
 
     bool typemark(datatype&);
     bool variabledecl(int, datatype, SymbolType&);
@@ -146,7 +143,7 @@ class Parser
     bool loopstatement();
     bool functioncall();
     bool argumentlist(std::vector<SymbolType>&);
-    bool name();
+    bool name(bool&);
     bool factor(datatype&);
     bool term(datatype&);
     bool term2(datatype&);
@@ -169,11 +166,13 @@ class Parser
     bool mPreScanned;
     bool mError;
     int mLevel;
+    int mFunctionCallCounter;
     long mCurrentAddr;
+    int mReg;
     // hack to allow arrays as an expression
     bool mIsArray;
     std::ofstream mGenFile;
-    char* mTopLevelFunction;
+    char* mCurrentFunction;
 
     SymbolTable mGlobalSymbols;
     std::vector<SymbolTable> mLocalSymbols;
