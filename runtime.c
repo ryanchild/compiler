@@ -1,14 +1,14 @@
-#include "runtime.h"
+#include "stdbool.h"
 #include "stdio.h"
 #include "math.h"
-#include "stdbool.h"
+#include "runtime.h"
 
-int MM[MM_SIZE];
-int R[R_SIZE];
+void* MM[MM_SIZE];
+void* R[R_SIZE];
 int SP;
 int TMP_INT;
 int TMP_FLOAT;
-char* TMP_STRING[256];
+char TMP_STRING[256];
 
 bool getBool()
 {

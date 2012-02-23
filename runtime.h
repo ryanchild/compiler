@@ -6,7 +6,7 @@ extern void* R[R_SIZE];
 extern int SP;
 extern int TMP_INT;
 extern int TMP_FLOAT;
-extern char* TMP_STRING[256];
+extern char TMP_STRING[256];
 
 extern bool getBool();
 extern int getInt();

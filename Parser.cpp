@@ -26,43 +26,42 @@ void Parser::initialize()
   vector<SymbolType> params;
   params.resize(0);
 
-  mGenFile << "include \"runtime.h\"" << endl;
   mGlobalSymbols["getBool"] = Symbol("getBool",
                                      SymbolType(FUNCTION, BOOLEAN),
                                      mCurrentAddr++);
   mGenFile << "getBool:" << endl
-           << "R[0] = (void*)getBool();" << endl
-           << "R[1] = MM[SP];" << endl
-           << "MM[SP] = R[0];" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tR[0] = (void*)getBool();" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tMM[SP] = R[0];" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getInt"] = Symbol("getInt",
                                     SymbolType(FUNCTION, INTEGER),
                                     mCurrentAddr++);
   mGenFile << "getInt:" << endl
-           << "TMP_INT = getInt();" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tTMP_INT = getInt();" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getString"] = Symbol("getString",
                                        SymbolType(FUNCTION, STRING),
                                        mCurrentAddr++);
   mGenFile << "getString:" << endl
-           << "getString(TMP_STRING);" << endl
-           << "R[0] = (void*)TMP_STRING;" << endl
-           << "R[1] = MM[SP];" << endl
-           << "MM[SP] = R[0];" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tgetString(TMP_STRING);" << endl
+           << "\tR[0] = (void*)TMP_STRING;" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tMM[SP] = R[0];" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getFloat"] = Symbol("getFloat",
                                       SymbolType(FUNCTION, FLOAT),
                                       mCurrentAddr++);
   mGenFile << "getFloat:" << endl
-           << "TMP_FLOAT = getFloat();" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tTMP_FLOAT = getFloat();" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   params.resize(1);
   params[0] = SymbolType(SCALAR, BOOLEAN);
@@ -70,54 +69,54 @@ void Parser::initialize()
                                      SymbolType(FUNCTION, INTEGER, 0, params),
                                      mCurrentAddr++);
   mGenFile << "putBool:" << endl
-           << "R[0] = MM[SP - 1];" << endl
-           << "TMP_INT = (int)putBool((bool)R[0]);" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tR[0] = MM[SP - 1];" << endl
+           << "\tTMP_INT = (int)putBool((bool)R[0]);" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   params[0].setDataType(INTEGER);
   mGlobalSymbols["putInt"] = Symbol("putInt",
                                     SymbolType(FUNCTION, INTEGER, 0, params),
                                     mCurrentAddr++);
   mGenFile << "putInt:" << endl
-           << "memcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
-           << "TMP_INT = putInt(TMP_INT);" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tmemcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
+           << "\tTMP_INT = putInt(TMP_INT);" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["sqrt"] = Symbol("sqrt",
                                   SymbolType(FUNCTION, FLOAT, 0, params),
                                   mCurrentAddr++);
   mGenFile << "sqrt:" << endl
-           << "memcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
-           << "TMP_FLOAT = sqrt(TMP_INT);" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tmemcpy(&TMP_INT, MM[SP - 1], sizeof(int));" << endl
+           << "\tTMP_FLOAT = sqrt(TMP_INT);" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_FLOAT, sizeof(float));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   params[0].setDataType(STRING);
   mGlobalSymbols["putString"] = Symbol("putString",
                                        SymbolType(FUNCTION, INTEGER, 0, params),
                                        mCurrentAddr++);
   mGenFile << "putString:" << endl
-           << "R[0] = MM[SP - 1];" << endl
-           << "TMP_INT = putString((char*)R[0]);" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tR[0] = MM[SP - 1];" << endl
+           << "\tTMP_INT = putString((char*)R[0]);" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 
   params[0].setDataType(FLOAT);
   mGlobalSymbols["putFloat"] = Symbol("putFloat",
                                       SymbolType(FUNCTION, INTEGER, 0, params),
                                       mCurrentAddr++);
   mGenFile << "putFloat:" << endl
-           << "memcpy(&TMP_FLOAT, MM[SP - 1], sizeof(float));" << endl
-           << "TMP_INT = putFloat(TMP_FLOAT);" << endl
-           << "R[1] = MM[SP];" << endl
-           << "memcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
-           << "goto *R[1];" << endl << endl;
+           << "\tmemcpy(&TMP_FLOAT, MM[SP - 1], sizeof(float));" << endl
+           << "\tTMP_INT = putFloat(TMP_FLOAT);" << endl
+           << "\tR[1] = MM[SP];" << endl
+           << "\tmemcpy(&MM[SP], &TMP_INT, sizeof(int));" << endl
+           << "\tgoto *R[1];" << endl << endl;
 }
 
 Token Parser::nextToken()
@@ -669,9 +668,14 @@ bool Parser::functiondecl(int addr, datatype dt, bool global/* = false*/)
 
 bool Parser::parse()
 {
-  mGenFile << "#include \"runtime.h\"" << endl
-           << "#include \"stdbool.h\"" << endl
+  mGenFile << "#include \"stdbool.h\"" << endl
            << "#include \"math.h\"" << endl
+           << "#include \"string.h\"" << endl
+           << "#include \"runtime.h\"" << endl
+           << endl
+           << "int main()" << endl
+           << "{" << endl
+           << "\tgoto _main;" << endl
            << endl;
 
   initialize();
@@ -679,8 +683,7 @@ bool Parser::parse()
   datatype dt;
   bool success = typemark(dt) && functiondecl(0, dt, true);
 
-  mGenFile << "int main()" << endl
-           << "{" << endl
+  mGenFile << "_main:" << endl
            << "\tSP = 1024;" << endl
            << "\tMM[SP] = &&_end;" << endl
            << "\tgoto " << mTopLevelFunction << ";" << endl
