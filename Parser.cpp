@@ -17,7 +17,7 @@ Parser::Parser(Scanner* s, const char* genfile)
   ,mFunctionCallCounter(0)
   ,mCurrentAddr(0)
   ,mReg(0)
-  ,mIsArray(false)
+  ,mArrayID(NULL)
   ,mGenFile(genfile)
   ,mCurrentFunction(NULL)
   ,mLocalSymbols(0)
@@ -37,7 +37,8 @@ void Parser::initialize()
                                      SymbolType(FUNCTION, BOOLEAN),
                                      mCurrentAddr++);
   mGenFile << "getBool:" << endl
-           << "\tR[0] = (size_t)getBool();" << endl
+           << "\tR[0] = (int)getBool();" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[1] = MM[R[SP]];" << endl
            << "\tMM[R[SP]] = R[0];" << endl
            << "\tgoto *R[1];" << endl << endl;
@@ -57,8 +58,9 @@ void Parser::initialize()
                                        mCurrentAddr++);
   mGenFile << "getString:" << endl
            << "\tgetString(TMP_STRING);" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = (size_t)TMP_STRING;" << endl
+           << "\tMM[R[SP]] = (int)TMP_STRING;" << endl
            << "\tgoto *R[1];" << endl << endl;
 
   mGlobalSymbols["getFloat"] = Symbol("getFloat",
@@ -66,6 +68,7 @@ void Parser::initialize()
                                       mCurrentAddr++);
   mGenFile << "getFloat:" << endl
            << "\tTMP_FLOAT = getFloat();" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[1] = MM[R[SP]];" << endl
            << "\tmemcpy(&MM[R[SP]], &TMP_FLOAT, sizeof(float));" << endl
            << "\tgoto *R[1];" << endl << endl;
@@ -76,54 +79,61 @@ void Parser::initialize()
                                      SymbolType(FUNCTION, INTEGER, 0, params),
                                      mCurrentAddr++);
   mGenFile << "putBool:" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tR[2] = putBool((bool)R[0]);" << endl
-           << "\tMM[R[SP]] = R[2];" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[1] = putBool((bool)R[0]);" << endl
+           << "\tR[0] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[1];" << endl
+           << "\tgoto *R[0];" << endl << endl;
 
   params[0].setDataType(INTEGER);
   mGlobalSymbols["putInt"] = Symbol("putInt",
                                     SymbolType(FUNCTION, INTEGER, 0, params),
                                     mCurrentAddr++);
   mGenFile << "putInt:" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tR[0] = putInt(R[0]);" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[0];" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[1] = putInt(R[0]);" << endl
+           << "\tR[0] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[1];" << endl
+           << "\tgoto *R[0];" << endl << endl;
 
   mGlobalSymbols["sqrt"] = Symbol("sqrt",
                                   SymbolType(FUNCTION, FLOAT, 0, params),
                                   mCurrentAddr++);
   mGenFile << "sqrt:" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
            << "\tTMP_FLOAT = sqrt(R[0]);" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tmemcpy(&MM[R[SP]], &TMP_FLOAT, sizeof(float));" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tmemcpy(&R[1], &TMP_FLOAT, sizeof(float));" << endl
+           << "\tR[0] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[1];" << endl
+           << "\tgoto *R[0];" << endl << endl;
 
   params[0].setDataType(STRING);
   mGlobalSymbols["putString"] = Symbol("putString",
                                        SymbolType(FUNCTION, INTEGER, 0, params),
                                        mCurrentAddr++);
   mGenFile << "putString:" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tR[0] = putString((char*)R[0]);" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[0];" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[1] = putString((char*)R[0]);" << endl
+           << "\tR[0] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[1];" << endl
+           << "\tgoto *R[0];" << endl << endl;
 
   params[0].setDataType(FLOAT);
   mGlobalSymbols["putFloat"] = Symbol("putFloat",
                                       SymbolType(FUNCTION, INTEGER, 0, params),
                                       mCurrentAddr++);
   mGenFile << "putFloat:" << endl
-           << "\tmemcpy(&TMP_FLOAT, &MM[R[SP] - 1], sizeof(float));" << endl
-           << "\tR[0] = putFloat(TMP_FLOAT);" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[0];" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[SP] = R[SP] - 1;" << endl
+           << "\tR[0] = MM[R[SP] - 1];" << endl
+           << "\tmemcpy(&TMP_FLOAT, &R[0], sizeof(float));" << endl
+           << "\tR[1] = putFloat(TMP_FLOAT);" << endl
+           << "\tR[0] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[1];" << endl
+           << "\tgoto *R[0];" << endl << endl;
 }
 
 Token Parser::nextToken()
@@ -285,26 +295,63 @@ bool Parser::loopstatement()
   return false;
 }
 
-bool Parser::functioncall()
+bool Parser::functioncall(vector<int>& regs)
 {
   const char* id = mTok.getString();
   vector<SymbolType> args;
   if(nextTokenIs(Token::OPENPAREN))
   {
-    argumentlist(args);
-    return !mError && nextTokenIs(Token::CLOSEPAREN);
+    argumentlist(args, regs);
+    if(!mError && nextTokenIs(Token::CLOSEPAREN))
+    {
+      SymbolTableIt it;
+      bool global;
+      lookupSymbol(id, it, global);
+      vector<SymbolType> params;
+      it->second.getSymbolType().getParams(params);
+      if(params != args)
+      {
+        //TOOD: report type check error
+        return false;
+      }
+      return true;
+    }
   }
   return false;
 }
 
-bool Parser::argumentlist(vector<SymbolType>& args)
+bool Parser::argumentlist(vector<SymbolType>& args, vector<int>& regs)
 {
   datatype dt;
-  mIsArray = false;
+  mArrayID = NULL;
   if(expression(dt))
   {
-    args.push_back(SymbolType(mIsArray ? ARRAY : SCALAR, dt));
-    if(nextTokenIs(Token::COMMA) && !argumentlist(args))
+    if(mArrayID)
+    {
+      SymbolTableIt it;
+      bool global;
+      lookupSymbol(mArrayID, it, global);
+      SymbolType st = it->second.getSymbolType();
+      args.push_back(st);
+      int size = st.getSize();
+      // mReg - 1 has address of first element, from factor()
+      int addr = mReg - 1;
+      regs.push_back(mReg);
+      for(int i = 1; i < size; i++)
+      {
+        mReg++;
+        mGenFile << "\tR[" << addr << "] = R[" << addr << "] + 1;" << endl
+                 << "\tR[" << mReg << "] = MM[R[" << addr << "]];" << endl;
+        regs.push_back(mReg);
+      }
+    }
+    else
+    {
+      args.push_back(SymbolType(SCALAR, dt));
+      regs.push_back(mReg);
+    }
+
+    if(nextTokenIs(Token::COMMA) && !argumentlist(args, regs))
     {
       //TODO: error reporting
       mError = true;
@@ -352,7 +399,8 @@ bool Parser::factor(datatype& dt)
   {
     const char* id = mTok.getString();
     bool hasIndex = false;
-    bool isFunctionCall = functioncall();
+    vector<int> regs;
+    bool isFunctionCall = functioncall(regs);
     if(isFunctionCall || name(hasIndex))
     {
       SymbolTableIt it;
@@ -379,8 +427,15 @@ bool Parser::factor(datatype& dt)
 
       if(isFunctionCall)
       {
+        // push arguments on to stack, in reverse order
+        vector<int>::reverse_iterator rit;
+        for(rit = regs.rbegin(); rit != regs.rend(); ++rit)
+        {
+          mGenFile << "\tMM[R[SP]] = R[" << *rit << "];" << endl
+                   << "\tR[SP] = R[SP] + 1;" << endl;
+        }
         mReg++;
-        mGenFile << "\tR[" << mReg << "] = (size_t)&&" << id
+        mGenFile << "\tR[" << mReg << "] = (int)&&" << id
                  << mFunctionCallCounter << ";" << endl
                  << "\tMM[R[SP]] = R[" << mReg << "];" << endl
                  << "\tR[SP] = R[SP] + 1;" << endl
@@ -389,11 +444,14 @@ bool Parser::factor(datatype& dt)
         mReg++;
         mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl;
         mFunctionCallCounter++;
+
+        // pop arguments off stack
+        mGenFile << "\tR[SP] = R[SP] - " << regs.size() << ";" << endl;
       }
 
       // hack to allow arrays as expression
       if(it->second.getStructureType() == ARRAY && !hasIndex)
-        mIsArray = true;
+        mArrayID = const_cast<char*>(id);
 
       return true;
     }
@@ -463,7 +521,8 @@ bool Parser::factor(datatype& dt)
   else if(nextTokenIs(Token::STRING))
   {
     dt = STRING;
-    mGenFile << "\tR[" << ++mReg << "] = " << mTok.getString() << ";" << endl;
+    mGenFile << "\tR[" << ++mReg << "] = (int)\"" << mTok.getString() 
+             << "\";" << endl;
   }
   else if(nextTokenIs(Token::TRUE) || nextTokenIs(Token::FALSE))
   {
@@ -482,7 +541,7 @@ bool Parser::term(datatype& dt)
   datatype dt1, dt2;
   if(factor(dt1))
   {
-    if(term2(dt2) && (dt1 != dt2 || mIsArray))
+    if(term2(dt2) && (dt1 != dt2 || mArrayID))
     {
       //TODO: report type check error
       mError = true;
@@ -517,7 +576,7 @@ bool Parser::relation(datatype& dt)
   datatype dt1, dt2;
   if(term(dt1))
   {
-    if(relation2(dt2) && (dt1 != dt2 || mIsArray))
+    if(relation2(dt2) && (dt1 != dt2 || mArrayID))
     {
       //TODO: report type check error
       return false;
@@ -556,7 +615,7 @@ bool Parser::arithop(datatype& dt)
   datatype dt1, dt2;
   if(relation(dt1))
   {
-    if(arithop2(dt2) && (dt1 != dt2 || mIsArray))
+    if(arithop2(dt2) && (dt1 != dt2 || mArrayID))
     {
       //TODO: report type check error
       mError = true;
@@ -594,7 +653,7 @@ bool Parser::expression(datatype& dt)
   bool haveNot = nextTokenIs(Token::NOT);
   if(arithop(dt1))
   {
-    if(expression2(dt2) && (dt1 != dt2 || mIsArray))
+    if(expression2(dt2) && (dt1 != dt2 || mArrayID))
     {
       //TODO: report type check error
       mError = true;
@@ -807,17 +866,16 @@ bool Parser::parse()
   {
     if(it->second.getStructureType() == FUNCTION)
       mGenFile << "\tR[0] = " << it->second.getAddr() << ";" << endl
-               << "\tMM[R[0]] = (size_t)&&" << it->second.getID() << ";" 
+               << "\tMM[R[0]] = (int)&&" << it->second.getID() << ";" 
                << endl;
   }
 
   mGenFile << "\tR[SP] = 1024;" << endl
-           << "\tMM[R[SP]] = (size_t)&&_end;" << endl
+           << "\tMM[R[SP]] = (int)&&_end;" << endl
            << "\tR[SP] = R[SP] + 1;" << endl
            << "\tgoto " << mCurrentFunction << ";" << endl
            << "_end:" << endl
-           << "\tprintf(\"the program exited with value %d\\n\",MM[R[SP]]);"<< endl
-           << "\treturn 0;" << endl
+           << "\treturn MM[R[SP]];" << endl
            << "}" << endl;
 
   return success;

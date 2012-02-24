@@ -69,6 +69,14 @@ class Parser
         datatype getDataType() const { return mDt; }
         structuretype getStructureType() const { return mSt; }
         int getSize() const { return mSize; }
+        void getParams(std::vector<SymbolType>& p) { p = mParams; }
+
+        bool operator==(const SymbolType& rhs) const
+        {
+          return rhs.mSt == mSt &&
+                 rhs.mDt == mDt &&
+                 rhs.mSize == mSize;
+        }
 
       private:
         structuretype mSt;
@@ -97,6 +105,7 @@ class Parser
         { 
           return mSt.getStructureType(); 
         }
+        SymbolType getSymbolType() const { return mSt; }
         long getAddr() const { return mAddr; }
         const char* getID() const { return mId; }
 
@@ -141,8 +150,8 @@ class Parser
     bool declaration(int, SymbolType&);
     bool ifstatement();
     bool loopstatement();
-    bool functioncall();
-    bool argumentlist(std::vector<SymbolType>&);
+    bool functioncall(std::vector<int>&);
+    bool argumentlist(std::vector<SymbolType>&, std::vector<int>&);
     bool name(bool&);
     bool factor(datatype&);
     bool term(datatype&);
@@ -170,7 +179,7 @@ class Parser
     long mCurrentAddr;
     int mReg;
     // hack to allow arrays as an expression
-    bool mIsArray;
+    char* mArrayID;
     std::ofstream mGenFile;
     char* mCurrentFunction;
 

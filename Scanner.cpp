@@ -221,7 +221,7 @@ bool Scanner::scan(Token& tok)
           oss << (char)c;
           if(cc != LOWER && cc != UPPER && cc != UNDERSCORE && cc != DIGIT
               && c != ' ' && c != '!' && c != '?' && c != ':' && c != ';' 
-              && c != '.' && c != ',')
+              && c != '.' && c != ',' && c != '\\')
           {
             foundError = true;
           }

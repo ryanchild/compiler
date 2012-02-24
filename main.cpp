@@ -32,9 +32,7 @@ int main(int argc, char** argv)
   }
 
   Parser p(&s, genfile.c_str());
-  if(p.parse())
-    cout << "successfully parsed " << filename << endl;
-  else
+  if(!p.parse())
     cout << "error parsing " << filename << endl;
 
   int ne = s.numErrors();
