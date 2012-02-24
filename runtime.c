@@ -3,9 +3,10 @@
 #include "math.h"
 #include "runtime.h"
 
-size_t MM[MM_SIZE];
-size_t R[R_SIZE];
+int MM[MM_SIZE];
+int R[R_SIZE];
 const int SP = R_SIZE - 1;
+const int FP = R_SIZE - 2;
 float TMP_FLOAT;
 char TMP_STRING[256];
 

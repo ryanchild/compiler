@@ -1,9 +1,11 @@
 #define MM_SIZE 65538
+#define STACK_START 1024
 #define R_SIZE 1024
 
-extern size_t MM[MM_SIZE];
-extern size_t R[R_SIZE];
+extern int MM[MM_SIZE];
+extern int R[R_SIZE];
 extern const int SP;
+extern const int FP;
 extern float TMP_FLOAT;
 extern char TMP_STRING[256];
 

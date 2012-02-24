@@ -37,103 +37,133 @@ void Parser::initialize()
                                      SymbolType(FUNCTION, BOOLEAN),
                                      mCurrentAddr++);
   mGenFile << "getBool:" << endl
-           << "\tR[0] = (int)getBool();" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[0];" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[0] = (int)getBool();" << endl;
+  calleeEnd(false);
 
   mGlobalSymbols["getInt"] = Symbol("getInt",
                                     SymbolType(FUNCTION, INTEGER),
                                     mCurrentAddr++);
   mGenFile << "getInt:" << endl
-           << "\tR[0] = getInt();" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[0];" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[0] = getInt();" << endl;
+  calleeEnd(false);
 
   mGlobalSymbols["getString"] = Symbol("getString",
                                        SymbolType(FUNCTION, STRING),
                                        mCurrentAddr++);
   mGenFile << "getString:" << endl
            << "\tgetString(TMP_STRING);" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = (int)TMP_STRING;" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tR[0] = (int)TMP_STRING;" << endl;
+  calleeEnd(false);
 
   mGlobalSymbols["getFloat"] = Symbol("getFloat",
                                       SymbolType(FUNCTION, FLOAT),
                                       mCurrentAddr++);
   mGenFile << "getFloat:" << endl
            << "\tTMP_FLOAT = getFloat();" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
-           << "\tR[1] = MM[R[SP]];" << endl
-           << "\tmemcpy(&MM[R[SP]], &TMP_FLOAT, sizeof(float));" << endl
-           << "\tgoto *R[1];" << endl << endl;
+           << "\tmemcpy(&R[0], &TMP_FLOAT, sizeof(float));" << endl;
+  calleeEnd(false);
 
   params.resize(1);
   params[0] = SymbolType(SCALAR, BOOLEAN);
   mGlobalSymbols["putBool"] = Symbol("putBool",
                                      SymbolType(FUNCTION, INTEGER, 0, params),
                                      mCurrentAddr++);
+  mReg = 1;
   mGenFile << "putBool:" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tR[1] = putBool((bool)R[0]);" << endl
-           << "\tR[0] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[1];" << endl
-           << "\tgoto *R[0];" << endl << endl;
+           << "\tR[1] = putBool((bool)R[0]);" << endl;
+  calleeEnd(false);
 
   params[0].setDataType(INTEGER);
   mGlobalSymbols["putInt"] = Symbol("putInt",
                                     SymbolType(FUNCTION, INTEGER, 0, params),
                                     mCurrentAddr++);
+  mReg = 1;
   mGenFile << "putInt:" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tR[1] = putInt(R[0]);" << endl
-           << "\tR[0] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[1];" << endl
-           << "\tgoto *R[0];" << endl << endl;
+           << "\tR[1] = putInt(R[0]);" << endl;
+  calleeEnd(false);
 
   mGlobalSymbols["sqrt"] = Symbol("sqrt",
                                   SymbolType(FUNCTION, FLOAT, 0, params),
                                   mCurrentAddr++);
+  mReg = 1;
   mGenFile << "sqrt:" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
            << "\tTMP_FLOAT = sqrt(R[0]);" << endl
-           << "\tmemcpy(&R[1], &TMP_FLOAT, sizeof(float));" << endl
-           << "\tR[0] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[1];" << endl
-           << "\tgoto *R[0];" << endl << endl;
+           << "\tmemcpy(&R[1], &TMP_FLOAT, sizeof(float));" << endl;
+  calleeEnd(false);
 
   params[0].setDataType(STRING);
   mGlobalSymbols["putString"] = Symbol("putString",
                                        SymbolType(FUNCTION, INTEGER, 0, params),
                                        mCurrentAddr++);
+  mReg = 1;
   mGenFile << "putString:" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tR[1] = putString((char*)R[0]);" << endl
-           << "\tR[0] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[1];" << endl
-           << "\tgoto *R[0];" << endl << endl;
+           << "\tR[1] = putString((char*)R[0]);" << endl;
+  calleeEnd(false);
 
   params[0].setDataType(FLOAT);
   mGlobalSymbols["putFloat"] = Symbol("putFloat",
                                       SymbolType(FUNCTION, INTEGER, 0, params),
                                       mCurrentAddr++);
+  mReg = 1;
   mGenFile << "putFloat:" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
            << "\tmemcpy(&TMP_FLOAT, &R[0], sizeof(float));" << endl
-           << "\tR[1] = putFloat(TMP_FLOAT);" << endl
-           << "\tR[0] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[1];" << endl
-           << "\tgoto *R[0];" << endl << endl;
+           << "\tR[1] = putFloat(TMP_FLOAT);" << endl;
+  calleeEnd(false);
+}
+
+void Parser::callerBegin(std::vector<int>& regs, const char* id)
+{
+  // push arguments on to stack, in reverse order
+  vector<int>::reverse_iterator rit;
+  for(rit = regs.rbegin(); rit != regs.rend(); ++rit)
+     mGenFile << "\tR[SP] = R[SP] + 1;" << endl
+              << "\tMM[R[SP]] = R[" << *rit << "];" << endl;
+
+  int addr = mReg++;
+  mGenFile << "\tR[" << mReg << "] = (int)&&" << id
+           << mFunctionCallCounter << ";" << endl
+           << "\tR[SP] = R[SP] + 1;" << endl
+           << "\tMM[R[SP]] = R[" << mReg << "];" << endl
+           << "\tgoto *(void*)R[" << addr << "];" << endl;
+}
+
+void Parser::callerEnd(std::vector<int>& regs, const char* id)
+{
+  mReg = 0;
+  mGenFile << id << mFunctionCallCounter << ":" << endl
+           << "\tR[" << mReg << "] = MM[R[SP]];" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl;
+  mFunctionCallCounter++;
+
+  // pop arguments off stack
+  if(regs.size() > 0)
+    mGenFile << "\tR[SP] = R[SP] - " << regs.size() << ";" << endl;
+}
+
+void Parser::calleeBegin()
+{
+  mGenFile << "\tR[SP] = R[SP] + 1;" << endl
+           << "\tMM[R[SP]] = R[FP];" << endl
+           << "\tR[FP] = R[SP] - 1;" << endl;
+}
+
+void Parser::calleeEnd(bool restorePointers/*=true*/)
+{
+  int ret = mReg;
+  mReg++;
+  if(restorePointers)
+    mGenFile << "\tR[FP] = MM[R[SP]];" << endl
+             << "\tR[SP] = R[SP] - 1;" << endl;
+
+  mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[" << ret << "];" << endl
+           << "\tgoto *(void*)R[" << mReg << "];" << endl;
+  mReg = 0;
 }
 
 Token Parser::nextToken()
@@ -167,11 +197,11 @@ bool Parser::lookupSymbol(string id, SymbolTableIt& it, bool& global)
   return (it != mGlobalSymbols.end());
 }
 
-void Parser::getMemoryLocation(int spOffset, bool hasIndex)
+void Parser::getMemoryLocation(int fpOffset, bool hasIndex)
 {
   mReg++;
-  mGenFile << "\tR[" << mReg << "] = " << spOffset << ";" << endl 
-           << "\tR[" << mReg << "] = R[" << mReg << "] + R[SP];" << endl;
+  mGenFile << "\tR[" << mReg << "] = " << fpOffset << ";" << endl 
+           << "\tR[" << mReg << "] = R[" << mReg << "] + R[FP];" << endl;
   if(hasIndex)
     mGenFile << "\tR[" << mReg << "] = R["
              << mReg << "] + R[" << mReg - 1 << "];" << endl;
@@ -422,31 +452,12 @@ bool Parser::factor(datatype& dt)
         getMemoryLocation(it->second.getAddr(), hasIndex);
 
       mReg++;
-      mGenFile << "\tR[" << mReg << "] = MM[R[" << mReg - 1 << "]];"
-               << endl;
+      mGenFile << "\tR[" << mReg << "] = MM[R[" << mReg - 1 << "]];" << endl;
 
       if(isFunctionCall)
       {
-        // push arguments on to stack, in reverse order
-        vector<int>::reverse_iterator rit;
-        for(rit = regs.rbegin(); rit != regs.rend(); ++rit)
-        {
-          mGenFile << "\tMM[R[SP]] = R[" << *rit << "];" << endl
-                   << "\tR[SP] = R[SP] + 1;" << endl;
-        }
-        mReg++;
-        mGenFile << "\tR[" << mReg << "] = (int)&&" << id
-                 << mFunctionCallCounter << ";" << endl
-                 << "\tMM[R[SP]] = R[" << mReg << "];" << endl
-                 << "\tR[SP] = R[SP] + 1;" << endl
-                 << "\tgoto *(void*)R[" << mReg - 1 << "];" << endl
-                 << id << mFunctionCallCounter << ":" << endl;
-        mReg++;
-        mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl;
-        mFunctionCallCounter++;
-
-        // pop arguments off stack
-        mGenFile << "\tR[SP] = R[SP] - " << regs.size() << ";" << endl;
+        callerBegin(regs, id);
+        callerEnd(regs, id);
       }
 
       // hack to allow arrays as expression
@@ -724,17 +735,29 @@ bool Parser::assignmentstatement()
       //TODO: throw type error
       return false;
     }
-    int result = mReg;
+
     if(!strcmp(s->second.getID(), mCurrentFunction))
     {
-      mGenFile << "\tR[SP] = R[SP] - 1;" << endl;
-      mReg++;
-      mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl
-               << "\tMM[R[SP]] = R[" << result << "];" << endl
-               << "\tgoto *(void*)R[" << mReg << "];" << endl << endl;
+      // clean up the stack
+      SymbolTableIt it;
+      int numLocals = 0;
+      for(it = localSymbolTable().begin(); it != localSymbolTable().end(); ++it)
+      {
+        SymbolType st = it->second.getSymbolType();
+        structuretype structureType = st.getStructureType();
+        if(structureType == SCALAR || structureType == FUNCTION)
+          numLocals++;
+        else
+          numLocals += st.getSize();
+      }
+      if(numLocals > 0)
+        mGenFile << "\tR[SP] = R[SP] - " << numLocals << ";" << endl;
+
+      calleeEnd();
     }
     else
     {
+      int result = mReg;
       getMemoryLocation(s->second.getAddr(), false);
       int destAddr = mReg;
       mGenFile << "\tMM[R[" << destAddr << "]] = R[" << result << "];" << endl;
@@ -754,7 +777,8 @@ bool Parser::statement()
 
 bool Parser::functionbody()
 {
-  int addr = 0;
+  // addr 1 has funciton definition
+  int addr = 2;
   SymbolType st;
   while(declaration(addr, st))
   {
@@ -768,6 +792,8 @@ bool Parser::functionbody()
         addr++;
     }
   }
+  if(addr > 1)
+    mGenFile << "\tR[SP] = R[SP] + " << addr - 1 << ";" << endl;
   if(nextTokenIs(Token::BEGIN))
   {
     mReg = 0;
@@ -820,13 +846,14 @@ bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
     if(nextTokenIs(Token::CLOSEPAREN))
     {
       SymbolTable& st = global ? mGlobalSymbols : localSymbolTable();
-      addr = global ? mCurrentAddr++ : 0;
+      addr = global ? mCurrentAddr++ : 1;
       st[id] = Symbol(id,
                       SymbolType(FUNCTION, dt, 0, params),
-                      0);
+                      1);
 
       mCurrentFunction = const_cast<char*>(id);
       mGenFile << id << ":" << endl;
+      calleeBegin();
     }
   }
   return isFunctionHeader;
@@ -870,9 +897,9 @@ bool Parser::parse()
                << endl;
   }
 
-  mGenFile << "\tR[SP] = 1024;" << endl
+  mGenFile << "\tR[SP] = STACK_START;" << endl
+           << "\tR[FP] = STACK_START;" << endl
            << "\tMM[R[SP]] = (int)&&_end;" << endl
-           << "\tR[SP] = R[SP] + 1;" << endl
            << "\tgoto " << mCurrentFunction << ";" << endl
            << "_end:" << endl
            << "\treturn MM[R[SP]];" << endl

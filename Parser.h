@@ -15,6 +15,10 @@ class Parser
     ~Parser();
     bool parse();
     void initialize();
+    inline void callerBegin(std::vector<int>&, const char*);
+    inline void callerEnd(std::vector<int>&, const char*);
+    inline void calleeBegin();
+    inline void calleeEnd(bool restorePointers=true);
 
     enum datatype
     {
@@ -37,14 +41,14 @@ class Parser
         SymbolType()
           :mSt(SCALAR)
           ,mDt(INTEGER)
-          ,mSize(0)
+          ,mSize(1)
         {}
 
         SymbolType(structuretype st,
                    datatype dt)
           :mSt(st)
           ,mDt(dt)
-          ,mSize(0)
+          ,mSize(1)
         {}
 
         SymbolType(structuretype st,
@@ -143,7 +147,7 @@ class Parser
     bool lookupSymbol(std::string, SymbolTableIt& it, bool& global);
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
     // after returning, mReg is the register with the desired address
-    void getMemoryLocation(int spOffset, bool hasIndex);
+    void getMemoryLocation(int fpOffset, bool hasIndex);
 
     bool typemark(datatype&);
     bool variabledecl(int, datatype, SymbolType&);

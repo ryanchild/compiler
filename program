@@ -5,18 +5,27 @@ integer function main()
   integer dump;
   float f;
   boolean b;
+  string s;
 
 begin
 
-//  dump := putString("enter an int: ");
+  dump := putString("enter an int: ");
   a := getInt();
   dump := putString("you entered ");
   dump := putInt(a);
-//  dump := putString("\nenter a float: ");
-//  f := getFloat();
-//  dump := putString("you entered ");
-//  dump := putFloat(f);
-//  dump := putString("\n");
+  dump := putString("\nenter a float: ");
+  f := getFloat();
+  dump := putString("you entered ");
+  dump := putFloat(f);
+  dump := putString("\nenter a bool: ");
+  b := getBool();
+  dump := putString("you entered ");
+  dump := putBool(b);
+  dump := putString("\nenter a string: ");
+  s := getString();
+  dump := putString("you entered ");
+  dump := putString(s);
+  dump := putString("\n");
 
   main := a;
 end function
