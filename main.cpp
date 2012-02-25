@@ -48,7 +48,7 @@ int main(int argc, char** argv)
     oss << "mv " << tempfilename << " " << genfile;
     system(oss.str().c_str());
     oss.str("");
-    oss << "gcc " << genfile << " runtime.c -lm";
+    oss << "gcc -m32 " << genfile << " runtime.c -lm";
     system(oss.str().c_str());
   }
 
