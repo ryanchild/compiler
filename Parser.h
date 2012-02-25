@@ -49,6 +49,7 @@ class Parser
           :mSt(st)
           ,mDt(dt)
           ,mSize(1)
+          ,mParams(0)
         {}
 
         SymbolType(structuretype st,
@@ -57,12 +58,13 @@ class Parser
           :mSt(st)
           ,mDt(dt)
           ,mSize(size)
+          ,mParams(0)
         {}
 
         SymbolType(structuretype st,
                    datatype dt,
                    int size,
-                   std::vector<SymbolType> params)
+                   std::vector<SymbolType>& params)
           :mSt(st)
           ,mDt(dt)
           ,mSize(size)
@@ -131,7 +133,7 @@ class Parser
     }
     bool arithOpCompatible(datatype dt1, datatype dt2) 
     { 
-      // no strings or booleans
+      // float or int
       return !((dt1 | dt2) & 0x05);
     }
     bool relationalOpCompatible(datatype dt1, datatype dt2) 
@@ -144,10 +146,17 @@ class Parser
       // ints only
       return !(dt1 | dt2);
     }
+    bool equivalentTypes(datatype dt1, datatype dt2)
+    {
+      return dt1 == dt2 || arithOpCompatible(dt1, dt2);
+    }
     bool lookupSymbol(std::string, SymbolTableIt& it, bool& global);
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
+    char* currentFunction() { return mFunctionNames[mLevel]; }
     // after returning, mReg is the register with the desired address
     void getMemoryLocation(int fpOffset, bool hasIndex);
+    void doOperation(int, int, const char* op, bool fp1 = false,
+       bool fp2 = false);
 
     bool typemark(datatype&);
     bool variabledecl(int, datatype, SymbolType&);
@@ -159,19 +168,19 @@ class Parser
     bool name(bool&);
     bool factor(datatype&);
     bool term(datatype&);
-    bool term2(datatype&);
+    bool term2(datatype&, const char*&);
     bool relation(datatype&);
-    bool relation2(datatype&);
+    bool relation2(datatype&, const char*&);
     bool arithop(datatype&);
-    bool arithop2(datatype&);
+    bool arithop2(datatype&, const char*&);
     bool expression(datatype&);
-    bool expression2(datatype&);
+    bool expression2(datatype&, const char*&);
     bool destination(SymbolTableIt& it);
     bool assignmentstatement();
     bool statement();
-    bool functionbody();
+    bool functionbody(const char*);
     bool parameterlist(std::vector<SymbolType>&, int addr=-1);
-    bool functionheader(int addr, datatype dt, bool global=false);
+    bool functionheader(int addr, datatype dt, const char*&, bool global=false);
     bool functiondecl(int addr, datatype dt, bool global=false);
 
     Scanner* mScanner;
@@ -185,10 +194,10 @@ class Parser
     // hack to allow arrays as an expression
     char* mArrayID;
     std::ofstream mGenFile;
-    char* mCurrentFunction;
 
     SymbolTable mGlobalSymbols;
     std::vector<SymbolTable> mLocalSymbols;
+    std::vector<char*> mFunctionNames;
 };
 
 #endif //PARSER_H

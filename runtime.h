@@ -6,7 +6,8 @@ extern int MM[MM_SIZE];
 extern int R[R_SIZE];
 extern const int SP;
 extern const int FP;
-extern float TMP_FLOAT;
+extern float TMP_FLOAT1;
+extern float TMP_FLOAT2;
 extern char TMP_STRING[256];
 
 extern bool getBool();

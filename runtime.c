@@ -7,7 +7,8 @@ int MM[MM_SIZE];
 int R[R_SIZE];
 const int SP = R_SIZE - 1;
 const int FP = R_SIZE - 2;
-float TMP_FLOAT;
+float TMP_FLOAT1;
+float TMP_FLOAT2;
 char TMP_STRING[256];
 
 bool getBool()

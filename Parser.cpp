@@ -11,6 +11,7 @@ using namespace std;
 
 Parser::Parser(Scanner* s, const char* genfile)
   :mScanner(s)
+  ,mTok(Token())
   ,mPreScanned(false)
   ,mError(false)
   ,mLevel(-1)
@@ -19,14 +20,12 @@ Parser::Parser(Scanner* s, const char* genfile)
   ,mReg(0)
   ,mArrayID(NULL)
   ,mGenFile(genfile)
-  ,mCurrentFunction(NULL)
   ,mLocalSymbols(0)
+  ,mFunctionNames(0)
 {}
 
 Parser::~Parser()
-{
-  mGenFile.close();
-}
+{}
 
 void Parser::initialize()
 {
@@ -59,8 +58,8 @@ void Parser::initialize()
                                       SymbolType(FUNCTION, FLOAT),
                                       mCurrentAddr++);
   mGenFile << "getFloat:" << endl
-           << "\tTMP_FLOAT = getFloat();" << endl
-           << "\tmemcpy(&R[0], &TMP_FLOAT, sizeof(float));" << endl;
+           << "\tTMP_FLOAT1 = getFloat();" << endl
+           << "\tmemcpy(&R[0], &TMP_FLOAT1, sizeof(float));" << endl;
   calleeEnd(false);
 
   params.resize(1);
@@ -90,8 +89,8 @@ void Parser::initialize()
   mReg = 1;
   mGenFile << "sqrt:" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tTMP_FLOAT = sqrt(R[0]);" << endl
-           << "\tmemcpy(&R[1], &TMP_FLOAT, sizeof(float));" << endl;
+           << "\tTMP_FLOAT1 = sqrt(R[0]);" << endl
+           << "\tmemcpy(&R[1], &TMP_FLOAT1, sizeof(float));" << endl;
   calleeEnd(false);
 
   params[0].setDataType(STRING);
@@ -111,8 +110,8 @@ void Parser::initialize()
   mReg = 1;
   mGenFile << "putFloat:" << endl
            << "\tR[0] = MM[R[SP] - 1];" << endl
-           << "\tmemcpy(&TMP_FLOAT, &R[0], sizeof(float));" << endl
-           << "\tR[1] = putFloat(TMP_FLOAT);" << endl;
+           << "\tmemcpy(&TMP_FLOAT1, &R[0], sizeof(float));" << endl
+           << "\tR[1] = putFloat(TMP_FLOAT1);" << endl;
   calleeEnd(false);
 }
 
@@ -207,6 +206,32 @@ void Parser::getMemoryLocation(int fpOffset, bool hasIndex)
              << mReg << "] + R[" << mReg - 1 << "];" << endl;
 }
 
+void Parser::doOperation(int op1, int op2, const char* op, 
+    bool fp1,/*= false*/ bool fp2/*= false*/)
+{
+  mReg++;
+  if(fp1 || fp2)
+  {
+    if(fp1)
+      mGenFile << "\tmemcpy(&TMP_FLOAT1, &R[" << op1 << "], sizeof(float));"
+               << endl;
+    else
+      mGenFile << "\tTMP_FLOAT1 = R[" << op1 << "];" << endl;
+    if(fp2)
+      mGenFile << "\tmemcpy(&TMP_FLOAT2, &R[" << op2 << "], sizeof(float));"
+               << endl;
+    else
+      mGenFile << "\tTMP_FLOAT2 = R[" << op2 << "];" << endl;
+
+    mGenFile << "\tTMP_FLOAT1 = TMP_FLOAT1 " << op << " TMP_FLOAT2;" << endl
+             << "\tmemcpy(&R[" << mReg << "], &TMP_FLOAT1, sizeof(float));"
+             << endl;
+  }
+  else
+    mGenFile << "\tR[" << mReg << "] = R[" << op1 << "] " << op
+             << " R[" << op2 << "];" << endl;
+}
+
 bool Parser::typemark(datatype& dt)
 {
   if(nextTokenIs(Token::INTEGER))
@@ -273,32 +298,44 @@ bool Parser::declaration(int addr, SymbolType& st)
 bool Parser::ifstatement()
 {
   datatype dt;
-  if(nextTokenIs(Token::IF) &&
-     expression(dt) &&
-     nextTokenIs(Token::THEN) &&
-     statement() &&
-     nextTokenIs(Token::SEMICOLON))
+  if(nextTokenIs(Token::IF) && expression(dt))
   {
-    if(dt != BOOLEAN && dt != INTEGER)
+    int labelnum = mFunctionCallCounter++;
+    mGenFile << "\tif(!R[" << mReg << "]) goto else" 
+             << labelnum << ";" << endl;
+    if(nextTokenIs(Token::THEN) &&
+       statement() &&
+       nextTokenIs(Token::SEMICOLON))
     {
-      //TODO: throw type check error
-      return false;
-    }
-    while(statement())
-    {
-      if(!nextTokenIs(Token::SEMICOLON))
+      if(dt != BOOLEAN && dt != INTEGER)
+      {
+        //TODO: throw type check error
         return false;
-    }
-    if(nextTokenIs(Token::ELSE) && statement() && nextTokenIs(Token::SEMICOLON))
-    {
+      }
       while(statement())
       {
         if(!nextTokenIs(Token::SEMICOLON))
           return false;
       }
-    }
+      mGenFile << "\tgoto endif" << labelnum << ";" << endl;
+      if(nextTokenIs(Token::ELSE))
+      {
+        mGenFile << "else" << labelnum << ":" << endl;
+        if(statement() && nextTokenIs(Token::SEMICOLON))
+        {
+          while(statement())
+          {
+            if(!nextTokenIs(Token::SEMICOLON))
+              return false;
+          }
+        }
+      }
+      else
+        mGenFile << "else" << labelnum << ":" << endl;
+      mGenFile << "endif" << labelnum << ":" << endl;
 
-    return nextTokenIs(Token::END) && nextTokenIs(Token::IF);
+      return nextTokenIs(Token::END) && nextTokenIs(Token::IF);
+    }
   }
   return false;
 }
@@ -306,21 +343,31 @@ bool Parser::ifstatement()
 bool Parser::loopstatement()
 {
   datatype dt;
-  if(nextTokenIs(Token::FOR) &&
-     assignmentstatement() &&
-     expression(dt))
+  if(nextTokenIs(Token::FOR) && assignmentstatement())
   {
-    if(dt != BOOLEAN && dt != INTEGER)
+    int labelnum = mFunctionCallCounter++;
+    mGenFile << "beginfor" << labelnum << ":" << endl;
+    if(expression(dt))
     {
-      //TODO: throw type check error
-      return false;
-    }
-    while(statement())
-    {
-      if(!nextTokenIs(Token::SEMICOLON))
+      mGenFile << "\tif(!R[" << mReg << "]) goto endfor" 
+               << labelnum << ";" << endl;
+      if(dt != BOOLEAN && dt != INTEGER)
+      {
+        //TODO: throw type check error
         return false;
+      }
+      while(statement())
+      {
+        if(!nextTokenIs(Token::SEMICOLON))
+          return false;
+      }
+      if(nextTokenIs(Token::END) && nextTokenIs(Token::FOR))
+      {
+        mGenFile << "\tgoto beginfor" << labelnum << ";" << endl
+                 << "endfor" << labelnum << ":" << endl;
+        return true;
+      }
     }
-    return nextTokenIs(Token::END) && nextTokenIs(Token::FOR);
   }
   return false;
 }
@@ -336,15 +383,18 @@ bool Parser::functioncall(vector<int>& regs)
     {
       SymbolTableIt it;
       bool global;
-      lookupSymbol(id, it, global);
-      vector<SymbolType> params;
-      it->second.getSymbolType().getParams(params);
-      if(params != args)
+      if(lookupSymbol(id, it, global))
       {
-        //TOOD: report type check error
-        return false;
+        vector<SymbolType> params;
+        it->second.getSymbolType().getParams(params);
+        if(params != args)
+        {
+          //TOOD: report type check error
+          mError = true;
+          return false;
+        }
+        return true;
       }
-      return true;
     }
   }
   return false;
@@ -502,11 +552,11 @@ bool Parser::factor(datatype& dt)
       if(dt == INTEGER)
         mGenFile << "\tR[" << ++mReg << "] = ";
       else
-        mGenFile << "\tTMP_FLOAT = ";
+        mGenFile << "\tTMP_FLOAT1 = ";
       mGenFile << mTok.getString() << ";" << endl;
       if(dt == FLOAT)
-        mGenFile << "\tmemcpy(&R[" << ++mReg << "], &TMP_FLOAT, sizeof(float));"
-                 << endl;
+        mGenFile << "\tmemcpy(&R[" << ++mReg 
+                 << "], &TMP_FLOAT1, sizeof(float));" << endl;
     }
     else
       return false;
@@ -523,10 +573,10 @@ bool Parser::factor(datatype& dt)
     if(dt == INTEGER)
       mGenFile << "\tR[" << ++mReg << "] = ";
     else
-      mGenFile << "\tTMP_FLOAT = ";
+      mGenFile << "\tTMP_FLOAT1 = ";
     mGenFile << mTok.getString() << ";" << endl;
     if(dt == FLOAT)
-      mGenFile << "\tmemcpy(&R[" << ++mReg << "], &TMP_FLOAT, sizeof(float));"
+      mGenFile << "\tmemcpy(&R[" << ++mReg << "], &TMP_FLOAT1, sizeof(float));"
                << endl;
   }
   else if(nextTokenIs(Token::STRING))
@@ -552,11 +602,18 @@ bool Parser::term(datatype& dt)
   datatype dt1, dt2;
   if(factor(dt1))
   {
-    if(term2(dt2) && (dt1 != dt2 || mArrayID))
+    int op1 = mReg;
+    const char* op;
+    if(term2(dt2, op))
     {
-      //TODO: report type check error
-      mError = true;
-      return false;
+      if(!equivalentTypes(dt1, dt2) || mArrayID)
+      {
+        //TODO: report type check error
+        mError = true;
+        return false;
+      }
+      int op2 = mReg;
+      doOperation(op1, op2, op, dt1 == FLOAT, dt2 == FLOAT);
     }
     dt = dt1;
     return true;
@@ -564,21 +621,31 @@ bool Parser::term(datatype& dt)
   return false;
 }
 
-bool Parser::term2(datatype& dt)
+bool Parser::term2(datatype& dt, const char*& op)
 {
   datatype dt2;
-  if(nextTokenIs(Token::MULTDIV) && factor(dt))
+  if(nextTokenIs(Token::MULTDIV))
   {
-    bool lastterm = term2(dt2);
-    if(!lastterm && !arithOpCompatible(dt, dt2))
+    op = mTok.getString();
+    if(factor(dt))
     {
-      //TODO: report type check error
-      mError = true;
-      return false;
+      int op1 = mReg;
+      const char* thisOp;
+      bool lastterm = !term2(dt2, thisOp);
+      int op2 = mReg;
+      if(!lastterm)
+      {
+        if(!arithOpCompatible(dt, dt2))
+        {
+          //TODO: report type check error
+          mError = true;
+          return false;
+        }
+        doOperation(op1, op2, thisOp, dt == FLOAT, dt2 == FLOAT);
+      }
+      return true;
     }
-    return true;
   }
-
   return false;
 }
 
@@ -587,35 +654,57 @@ bool Parser::relation(datatype& dt)
   datatype dt1, dt2;
   if(term(dt1))
   {
-    if(relation2(dt2) && (dt1 != dt2 || mArrayID))
+    int op1 = mReg;
+    const char* op;
+    if(relation2(dt2, op))
     {
-      //TODO: report type check error
-      return false;
+      if(!equivalentTypes(dt1, dt2) || mArrayID)
+      {
+        //TODO: report type check error
+        return false;
+      }
+      int op2 = mReg;
+      doOperation(op1, op2, op);
+      dt = BOOLEAN;
     }
-    dt = dt1;
+    else
+      dt = dt1;
+
     return true;
   }
   return false;
 }
 
-bool Parser::relation2(datatype& dt)
+bool Parser::relation2(datatype& dt, const char*& op)
 {
   datatype dt2;
-  if((nextTokenIs(Token::LTE) ||
+  if(nextTokenIs(Token::LTE) ||
       nextTokenIs(Token::LT) ||
       nextTokenIs(Token::GTE) ||
       nextTokenIs(Token::GT) ||
       nextTokenIs(Token::EQUAL) ||
-      nextTokenIs(Token::NOTEQUAL)) && term(dt))
+      nextTokenIs(Token::NOTEQUAL))
   {
-    bool lastrelation = relation2(dt2);
-    if(!lastrelation && !relationalOpCompatible(dt, dt2))
+    op = mTok.getString();
+    if(term(dt2))
     {
-      //TODO: report type check error
-      mError = true;
-      return false;
+      int op1 = mReg;
+      const char* thisOp;
+      bool lastrelation = !relation2(dt2, thisOp);
+      int op2 = mReg;
+      if(!lastrelation)
+      {
+        if(!relationalOpCompatible(dt, dt2))
+        {
+          //TODO: report type check error
+          mError = true;
+          return false;
+        }
+        doOperation(op1, op2, thisOp);
+      }
+      dt = dt2;
+      return true;
     }
-    return true;
   }
 
   return false;
@@ -626,11 +715,18 @@ bool Parser::arithop(datatype& dt)
   datatype dt1, dt2;
   if(relation(dt1))
   {
-    if(arithop2(dt2) && (dt1 != dt2 || mArrayID))
+    int op1 = mReg;
+    const char* op;
+    if(arithop2(dt2, op))
     {
-      //TODO: report type check error
-      mError = true;
-      return false;
+      if(!equivalentTypes(dt1, dt2) || mArrayID)
+      {
+        //TODO: report type check error
+        mError = true;
+        return false;
+      }
+      int op2 = mReg;
+      doOperation(op1, op2, op);
     }
     dt = dt1;
     return true;
@@ -638,22 +734,32 @@ bool Parser::arithop(datatype& dt)
   return false;
 }
 
-bool Parser::arithop2(datatype& dt)
+bool Parser::arithop2(datatype& dt, const char*& op)
 {
   datatype dt2;
-  if((nextTokenIs(Token::PLUS) ||
-      nextTokenIs(Token::MINUS)) && relation(dt))
-  {
-    bool lastop = arithop2(dt2);
-    if(!lastop && !arithOpCompatible(dt, dt2))
+  if(nextTokenIs(Token::PLUS) || nextTokenIs(Token::MINUS))
+  { 
+    op = mTok.getString();
+    if(relation(dt))
     {
-      //TODO: report type check error
-      mError = true;
-      return false;
+      int op1 = mReg;
+      const char* thisOp;
+      bool lastop = !arithop2(dt2, thisOp);
+      int op2 = mReg;
+      if(!lastop)
+      {
+        if(!arithOpCompatible(dt, dt2))
+        {
+          //TODO: report type check error
+          mError = true;
+          return false;
+        }
+        doOperation(op1, op2, op);
+      }
+      dt = dt2;
+      return true;
     }
-    return true;
   }
-
   return false;
 }
 
@@ -664,11 +770,18 @@ bool Parser::expression(datatype& dt)
   bool haveNot = nextTokenIs(Token::NOT);
   if(arithop(dt1))
   {
-    if(expression2(dt2) && (dt1 != dt2 || mArrayID))
+    int op1 = mReg;
+    const char* op;
+    if(expression2(dt2, op))
     {
-      //TODO: report type check error
-      mError = true;
-      return false;
+      if(!equivalentTypes(dt1, dt2) || mArrayID)
+      {
+        //TODO: report type check error
+        mError = true;
+        return false;
+      }
+      int op2 = mReg;
+      doOperation(op1, op2, op);
     }
     dt = dt1;
     return !mError;
@@ -676,21 +789,32 @@ bool Parser::expression(datatype& dt)
   return false;
 }
 
-bool Parser::expression2(datatype& dt)
+bool Parser::expression2(datatype& dt, const char*& op)
 {
   datatype dt2;
-  if((nextTokenIs(Token::AND) ||
-      nextTokenIs(Token::OR)) && relation(dt))
+  if(nextTokenIs(Token::AND) ||
+     nextTokenIs(Token::OR))
   {
-    bool lastexpression = expression2(dt2);
-    if(!lastexpression && !bitwiseOpCompatible(dt, dt2))
+    op = mTok.getString();
+    if(relation(dt))
     {
-      //TODO: report type check error
-      return false;
+      int op1 = mReg;
+      const char* thisOp;
+      bool lastexpression = !expression2(dt2, thisOp);
+      int op2 = mReg;
+      if(!lastexpression)
+      {
+        if(!bitwiseOpCompatible(dt, dt2))
+        {
+          //TODO: report type check error
+          return false;
+        }
+        doOperation(op1, op2, thisOp);
+      }
+      dt = dt2;
+      return true;
     }
-    return true;
   }
-
   return false;
 }
 
@@ -716,7 +840,8 @@ bool Parser::destination(SymbolTableIt& it)
     bool global;
     if(!lookupSymbol(id, it, global))
     {
-      //TODO: error symbol not found
+      //TODO: report error symbol not found
+      mError = true;
       return false;
     }
     return true;
@@ -730,13 +855,13 @@ bool Parser::assignmentstatement()
   SymbolTableIt s;
   if(destination(s) && nextTokenIs(Token::ASSIGNMENT) && expression(dt))
   {
-    if(s->second.getDataType() != dt)
+    if(!equivalentTypes(s->second.getDataType(), dt))
     {
       //TODO: throw type error
       return false;
     }
 
-    if(!strcmp(s->second.getID(), mCurrentFunction))
+    if(!strcmp(s->second.getID(), currentFunction()))
     {
       // clean up the stack
       SymbolTableIt it;
@@ -745,9 +870,12 @@ bool Parser::assignmentstatement()
       {
         SymbolType st = it->second.getSymbolType();
         structuretype structureType = st.getStructureType();
-        if(structureType == SCALAR || structureType == FUNCTION)
+        // only clean up our own variables, not parameters
+        // parameters have a negative offset address
+        if((structureType == SCALAR || structureType == FUNCTION) &&
+            it->second.getAddr() > 0)
           numLocals++;
-        else
+        else if(structureType == ARRAY)
           numLocals += st.getSize();
       }
       if(numLocals > 0)
@@ -775,10 +903,12 @@ bool Parser::statement()
          loopstatement();
 }
 
-bool Parser::functionbody()
+bool Parser::functionbody(const char* id)
 {
-  // addr 1 has funciton definition
-  int addr = 2;
+  // addr relative to FP
+  // 1 is stored FP
+  // 2 is function address
+  int addr = 3;
   SymbolType st;
   while(declaration(addr, st))
   {
@@ -792,18 +922,39 @@ bool Parser::functionbody()
         addr++;
     }
   }
-  if(addr > 1)
-    mGenFile << "\tR[SP] = R[SP] + " << addr - 1 << ";" << endl;
   if(nextTokenIs(Token::BEGIN))
   {
+    mGenFile << id << "_begin:" << endl;
+    // add any stack variables plus the function address
+    mGenFile << "\tR[SP] = R[SP] + " << addr - 2 << ";" << endl;
     mReg = 0;
+
+    // store function addresses
+    SymbolTableIt it = localSymbolTable().begin();
+    for(; it != localSymbolTable().end(); ++it)
+    {
+      structuretype st = it->second.getStructureType();
+      if(st == FUNCTION)
+      {
+        int addr = it->second.getAddr();
+        mReg++;
+        mGenFile << "\tR[" << mReg << "] = " << addr << ";" << endl
+                 << "\tR[" << mReg << "] = R[" << mReg << "] + R[FP];" << endl
+                 << "\tMM[R[" << mReg << "]] = (int)&&" << it->second.getID() 
+                 << ";" << endl;
+      }
+    }
+
     while(statement())
     {
       if(!nextTokenIs(Token::SEMICOLON))
         return false;
     }
-    return nextTokenIs(Token::END) &&
-           nextTokenIs(Token::FUNCTION);
+    if(nextTokenIs(Token::END) && nextTokenIs(Token::FUNCTION))
+    {
+      mFunctionNames.pop_back();
+      return true;
+    }
   }
   return false;
 }
@@ -831,12 +982,13 @@ bool Parser::parameterlist(vector<SymbolType>& params, int addr/*=-1*/)
   return false;
 }
 
-bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
+bool Parser::functionheader(int addr, datatype dt, const char*& id,
+    bool global/* = false*/)
 {
   bool isFunctionHeader = nextTokenIs(Token::FUNCTION) &&
                           nextTokenIs(Token::IDENTIFIER);
 
-  const char* id = mTok.getString();
+  id = mTok.getString();
 
   isFunctionHeader = isFunctionHeader && nextTokenIs(Token::OPENPAREN);
   if(isFunctionHeader)
@@ -846,14 +998,20 @@ bool Parser::functionheader(int addr, datatype dt, bool global/* = false*/)
     if(nextTokenIs(Token::CLOSEPAREN))
     {
       SymbolTable& st = global ? mGlobalSymbols : localSymbolTable();
-      addr = global ? mCurrentAddr++ : 1;
+      int firstaddr = global ? mCurrentAddr++ : 2;
+
       st[id] = Symbol(id,
                       SymbolType(FUNCTION, dt, 0, params),
-                      1);
+                      firstaddr);
 
-      mCurrentFunction = const_cast<char*>(id);
+      if(mLevel != 0 && !global)
+        mLocalSymbols[mLevel - 1][id] = 
+          Symbol(id, SymbolType(FUNCTION, dt, 0, params), addr);
+
+      mFunctionNames.push_back(const_cast<char*>(id));
       mGenFile << id << ":" << endl;
       calleeBegin();
+      mGenFile << "\tgoto " << id << "_begin;" << endl;
     }
   }
   return isFunctionHeader;
@@ -863,7 +1021,9 @@ bool Parser::functiondecl(int addr, datatype dt, bool global/* = false*/)
 {
   mLevel++;
   mLocalSymbols.push_back(SymbolTable());
-  bool isFunctionDecl = functionheader(addr, dt, global) && functionbody();
+  const char* id;
+  bool isFunctionDecl = functionheader(addr, dt, id, global) && 
+                        functionbody(id);
   mLocalSymbols.pop_back();
   mLevel--;
   return isFunctionDecl;
@@ -900,10 +1060,12 @@ bool Parser::parse()
   mGenFile << "\tR[SP] = STACK_START;" << endl
            << "\tR[FP] = STACK_START;" << endl
            << "\tMM[R[SP]] = (int)&&_end;" << endl
-           << "\tgoto " << mCurrentFunction << ";" << endl
+           << "\tgoto main;" << endl
            << "_end:" << endl
            << "\treturn MM[R[SP]];" << endl
            << "}" << endl;
 
-  return success;
+  mGenFile.close();
+
+  return true;
 }

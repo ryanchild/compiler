@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cstdlib>
 #include <cerrno>
 #include <iostream>
 
@@ -20,9 +21,9 @@ int main(int argc, char** argv)
     filename = argv[1];
 
   // get the file base
-  string genfile = 
+  string base = 
     filename.substr(0, int( strrchr(filename.c_str(), '.') - filename.c_str()));
-  genfile += ".c";
+  string genfile = base + ".c";
 
   Scanner s(filename.c_str());
   if(!s.initialize())
@@ -33,15 +34,22 @@ int main(int argc, char** argv)
 
   Parser p(&s, genfile.c_str());
   if(!p.parse())
+  {
     cout << "error parsing " << filename << endl;
 
-  int ne = s.numErrors();
-  if(ne > 0)
+    int ne = s.numErrors();
+    if(ne > 0)
+    {
+      const char* plural = ne == 1 ? "" : "s";
+      cout << endl << ne << " fatal error" << plural << " found. Aborting..." 
+        << endl;
+      s.printErrors();
+    }
+  }
+  else
   {
-    const char* plural = ne == 1 ? "" : "s";
-    cout << endl << ne << " fatal error" << plural << " found. Aborting..." 
-      << endl;
-    s.printErrors();
+    string cmd = "gcc " + genfile + " runtime.c -lm";
+    system(cmd.c_str());
   }
 
   return 0;
