@@ -2,6 +2,7 @@
 #include <cstdlib>
 #include <cerrno>
 #include <iostream>
+#include <sstream>
 
 #include "Parser.h"
 #include "Scanner.h"
@@ -11,6 +12,7 @@ using namespace std;
 
 int main(int argc, char** argv)
 {
+  const char* tempfilename = "wgen.tmp";
   string filename;
   if(argc != 2)
   {
@@ -32,13 +34,22 @@ int main(int argc, char** argv)
     return 1;
   }
 
-  Parser p(&s, genfile.c_str());
+  ostringstream oss;
+  Parser p(&s, tempfilename);
   if(!p.parse())
+  {
     cout << "error parsing " << filename << endl;
+    oss << "rm " << tempfilename;
+    system(oss.str().c_str());
+    return 1;
+  }
   else
   {
-    string cmd = "gcc " + genfile + " runtime.c -lm";
-    system(cmd.c_str());
+    oss << "mv " << tempfilename << " " << genfile;
+    system(oss.str().c_str());
+    oss.str("");
+    oss << "gcc " << genfile << " runtime.c -lm";
+    system(oss.str().c_str());
   }
 
   return 0;

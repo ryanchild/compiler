@@ -15,10 +15,6 @@ class Parser
     ~Parser();
     bool parse();
     void initialize();
-    inline void callerBegin(std::vector<int>&, const char*);
-    inline void callerEnd(std::vector<int>&, const char*);
-    inline void calleeBegin();
-    inline void calleeEnd(bool restorePointers=true);
 
     enum datatype
     {
@@ -141,11 +137,6 @@ class Parser
       // no floats or strings
       return !((dt1 | dt2) & 0x06);
     }
-    bool bitwiseOpCompatible(datatype dt1, datatype dt2)
-    {
-      // ints only
-      return !(dt1 | dt2);
-    }
     bool equivalentTypes(datatype dt1, datatype dt2)
     {
       return dt1 == dt2 || arithOpCompatible(dt1, dt2);
@@ -157,6 +148,22 @@ class Parser
     void getMemoryLocation(int, bool global=false);
     void doOperation(int, int, const char* op, bool fp1 = false,
        bool fp2 = false);
+    inline void throwError(std::string);
+    inline void throwWarning(std::string);
+
+    // code generation
+    inline void callerBegin(std::vector<int>&, const char*);
+    inline void callerEnd(std::vector<int>&, const char*);
+    inline void calleeBegin();
+    inline void calleeEnd(bool restorePointers=true);
+
+    const char* dtToString(datatype dt)
+    {
+      return dt == INTEGER ? "integer" :
+             dt == BOOLEAN ? "booelan" :
+             dt == FLOAT ? "float" :
+             dt == STRING ? "string" : "";
+    }
 
     bool typemark(datatype&);
     bool variabledecl(int, datatype, SymbolType&, bool global=false);
@@ -186,6 +193,7 @@ class Parser
     Scanner* mScanner;
     Token mTok;
     bool mPreScanned;
+    int mErrorCount;
     bool mError;
     int mLevel;
     int mFunctionCallCounter;
@@ -198,6 +206,7 @@ class Parser
     SymbolTable mGlobalSymbols;
     std::vector<SymbolTable> mLocalSymbols;
     std::vector<char*> mFunctionNames;
+    std::vector<bool> mHaveReturn;
 };
 
 #endif //PARSER_H

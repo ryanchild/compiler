@@ -13,6 +13,7 @@ Parser::Parser(Scanner* s, const char* genfile)
   :mScanner(s)
   ,mTok(Token())
   ,mPreScanned(false)
+  ,mErrorCount(0)
   ,mError(false)
   ,mLevel(-1)
   ,mFunctionCallCounter(0)
@@ -22,6 +23,7 @@ Parser::Parser(Scanner* s, const char* genfile)
   ,mGenFile(genfile)
   ,mLocalSymbols(0)
   ,mFunctionNames(0)
+  ,mHaveReturn(0)
 {}
 
 Parser::~Parser()
@@ -115,56 +117,6 @@ void Parser::initialize()
   calleeEnd(false);
 }
 
-void Parser::callerBegin(std::vector<int>& regs, const char* id)
-{
-  // push arguments on to stack, in reverse order
-  vector<int>::reverse_iterator rit;
-  for(rit = regs.rbegin(); rit != regs.rend(); ++rit)
-     mGenFile << "\tR[SP] = R[SP] + 1;" << endl
-              << "\tMM[R[SP]] = R[" << *rit << "];" << endl;
-
-  int addr = mReg++;
-  mGenFile << "\tR[" << mReg << "] = (int)&&" << id
-           << mFunctionCallCounter << ";" << endl
-           << "\tR[SP] = R[SP] + 1;" << endl
-           << "\tMM[R[SP]] = R[" << mReg << "];" << endl
-           << "\tgoto *(void*)R[" << addr << "];" << endl;
-}
-
-void Parser::callerEnd(std::vector<int>& regs, const char* id)
-{
-  mReg = 0;
-  mGenFile << id << mFunctionCallCounter << ":" << endl
-           << "\tR[" << mReg << "] = MM[R[SP]];" << endl
-           << "\tR[SP] = R[SP] - 1;" << endl;
-  mFunctionCallCounter++;
-
-  // pop arguments off stack
-  if(regs.size() > 0)
-    mGenFile << "\tR[SP] = R[SP] - " << regs.size() << ";" << endl;
-}
-
-void Parser::calleeBegin()
-{
-  mGenFile << "\tR[SP] = R[SP] + 1;" << endl
-           << "\tMM[R[SP]] = R[FP];" << endl
-           << "\tR[FP] = R[SP] - 1;" << endl;
-}
-
-void Parser::calleeEnd(bool restorePointers/*=true*/)
-{
-  int ret = mReg;
-  mReg++;
-  if(restorePointers)
-    mGenFile << "\tR[FP] = MM[R[SP]];" << endl
-             << "\tR[SP] = R[SP] - 1;" << endl;
-
-  mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl
-           << "\tMM[R[SP]] = R[" << ret << "];" << endl
-           << "\tgoto *(void*)R[" << mReg << "];" << endl;
-  mReg = 0;
-}
-
 Token Parser::nextToken()
 {
   if(mPreScanned)
@@ -232,6 +184,70 @@ void Parser::doOperation(int op1, int op2, const char* op,
              << " R[" << op2 << "];" << endl;
 }
 
+void Parser::throwError(string err)
+{
+  std::cout << "error on line " << mScanner->getLineNumber() << ": " 
+            << err << std::endl;
+  mError = true;
+  mErrorCount++;
+}
+
+void Parser::throwWarning(string warn)
+{
+  std::cout << "warning: " << mScanner->getLineNumber() << ": " 
+            << warn << std::endl;
+}
+
+void Parser::callerBegin(std::vector<int>& regs, const char* id)
+{
+  // push arguments on to stack, in reverse order
+  vector<int>::reverse_iterator rit;
+  for(rit = regs.rbegin(); rit != regs.rend(); ++rit)
+     mGenFile << "\tR[SP] = R[SP] + 1;" << endl
+              << "\tMM[R[SP]] = R[" << *rit << "];" << endl;
+
+  int addr = mReg++;
+  mGenFile << "\tR[" << mReg << "] = (int)&&" << id
+           << mFunctionCallCounter << ";" << endl
+           << "\tR[SP] = R[SP] + 1;" << endl
+           << "\tMM[R[SP]] = R[" << mReg << "];" << endl
+           << "\tgoto *(void*)R[" << addr << "];" << endl;
+}
+
+void Parser::callerEnd(std::vector<int>& regs, const char* id)
+{
+  mReg = 0;
+  mGenFile << id << mFunctionCallCounter << ":" << endl
+           << "\tR[" << mReg << "] = MM[R[SP]];" << endl
+           << "\tR[SP] = R[SP] - 1;" << endl;
+  mFunctionCallCounter++;
+
+  // pop arguments off stack
+  if(regs.size() > 0)
+    mGenFile << "\tR[SP] = R[SP] - " << regs.size() << ";" << endl;
+}
+
+void Parser::calleeBegin()
+{
+  mGenFile << "\tR[SP] = R[SP] + 1;" << endl
+           << "\tMM[R[SP]] = R[FP];" << endl
+           << "\tR[FP] = R[SP] - 1;" << endl;
+}
+
+void Parser::calleeEnd(bool restorePointers/*=true*/)
+{
+  int ret = mReg;
+  mReg++;
+  if(restorePointers)
+    mGenFile << "\tR[FP] = MM[R[SP]];" << endl
+             << "\tR[SP] = R[SP] - 1;" << endl;
+
+  mGenFile << "\tR[" << mReg << "] = MM[R[SP]];" << endl
+           << "\tMM[R[SP]] = R[" << ret << "];" << endl
+           << "\tgoto *(void*)R[" << mReg << "];" << endl;
+  mReg = 0;
+}
+
 bool Parser::typemark(datatype& dt)
 {
   if(nextTokenIs(Token::INTEGER))
@@ -259,7 +275,7 @@ bool Parser::variabledecl(int addr, datatype dt, SymbolType& st,
     {
       if(getNumberType() != INTEGER)
       {
-        //TODO: throw type error
+        throwError("array index must be an integer");
         return false;
       }
       int size = atoi(mTok.getString());
@@ -269,6 +285,9 @@ bool Parser::variabledecl(int addr, datatype dt, SymbolType& st,
         table[id] = Symbol(id, st, tmpAddr);
         return true;
       }
+      stringstream m;
+      m << "expected ], not " << mTok.getString();
+      throwError(m.str());
       return false;
     }
 
@@ -286,9 +305,7 @@ bool Parser::declaration(int addr, SymbolType& st, bool& global)
     if(mLevel == 0)
       global = true;
     else
-    {
-      //TODO: issue warning
-    }
+      throwWarning("global specifier only valid at top level. ignoring.");
   }
 
   datatype dt;
@@ -302,6 +319,11 @@ bool Parser::ifstatement()
   datatype dt;
   if(nextTokenIs(Token::IF) && expression(dt))
   {
+    if(dt != BOOLEAN && dt != INTEGER)
+    {
+      throwError("conditional expressions must be convertable to boolean");
+      return false;
+    }
     int labelnum = mFunctionCallCounter++;
     mGenFile << "\tif(!R[" << mReg << "]) goto else" 
              << labelnum << ";" << endl;
@@ -309,15 +331,13 @@ bool Parser::ifstatement()
        statement() &&
        nextTokenIs(Token::SEMICOLON))
     {
-      if(dt != BOOLEAN && dt != INTEGER)
-      {
-        //TODO: throw type check error
-        return false;
-      }
       while(statement())
       {
         if(!nextTokenIs(Token::SEMICOLON))
+        {
+          throwError("expected ;");
           return false;
+        }
       }
       mGenFile << "\tgoto endif" << labelnum << ";" << endl;
       if(nextTokenIs(Token::ELSE))
@@ -328,7 +348,10 @@ bool Parser::ifstatement()
           while(statement())
           {
             if(!nextTokenIs(Token::SEMICOLON))
+            {
+              throwError("expected ;");
               return false;
+            }
           }
         }
       }
@@ -355,13 +378,16 @@ bool Parser::loopstatement()
                << labelnum << ";" << endl;
       if(dt != BOOLEAN && dt != INTEGER)
       {
-        //TODO: throw type check error
+        throwError("conditional expressions must be convertable to boolean");
         return false;
       }
       while(statement())
       {
         if(!nextTokenIs(Token::SEMICOLON))
+        {
+          throwError("expected ;");
           return false;
+        }
       }
       if(nextTokenIs(Token::END) && nextTokenIs(Token::FOR))
       {
@@ -381,7 +407,7 @@ bool Parser::functioncall(vector<int>& regs)
   if(nextTokenIs(Token::OPENPAREN))
   {
     argumentlist(args, regs);
-    if(!mError && nextTokenIs(Token::CLOSEPAREN))
+    if(nextTokenIs(Token::CLOSEPAREN))
     {
       SymbolTableIt it;
       bool global;
@@ -391,8 +417,9 @@ bool Parser::functioncall(vector<int>& regs)
         it->second.getSymbolType().getParams(params);
         if(params != args)
         {
-          //TOOD: report type check error
-          mError = true;
+          std::stringstream m;
+          m << "argument types do match function signature for " << id;
+          throwError(m.str());
           return false;
         }
         return true;
@@ -435,8 +462,7 @@ bool Parser::argumentlist(vector<SymbolType>& args, vector<int>& regs)
 
     if(nextTokenIs(Token::COMMA) && !argumentlist(args, regs))
     {
-      //TODO: error reporting
-      mError = true;
+      throwError("syntax error in argument list");
       return false;
     }
     return true;
@@ -452,7 +478,7 @@ bool Parser::name(bool& hasIndex)
   {
     if(dt != BOOLEAN && dt != INTEGER)
     {
-      //TODO: throw type check error
+      throwError("array indexes must be integers");
       return false;
     }
     hasIndex = true;
@@ -472,7 +498,7 @@ bool Parser::factor(datatype& dt)
      if(expression(dt) && nextTokenIs(Token::CLOSEPAREN))
        return true;
 
-     mError = true;
+     throwError("unmatched parentheses in expression");
      return false;
   }
 
@@ -490,7 +516,9 @@ bool Parser::factor(datatype& dt)
       bool global = false;
       if(!lookupSymbol(id, it, global))
       {
-        //TODO: throw symbol not found error
+        stringstream m;
+        m << "symbol \"" << id << "\" not found";
+        throwError(m.str());
         return false;
       }
       int addr = it->second.getAddr();
@@ -549,7 +577,6 @@ bool Parser::factor(datatype& dt)
   }
   else
   {
-    //TODO: report syntax error
     return false;
   }
   return true;
@@ -566,8 +593,10 @@ bool Parser::term(datatype& dt)
     {
       if(!equivalentTypes(dt1, dt2) || mArrayID)
       {
-        //TODO: report type check error
-        mError = true;
+        stringstream m;
+        m << dtToString(dt1) << " type is not compatible with "
+          << dtToString(dt2) << " type";
+        throwError(m.str());
         return false;
       }
       int op2 = mReg;
@@ -595,8 +624,10 @@ bool Parser::term2(datatype& dt, const char*& op)
       {
         if(!arithOpCompatible(dt, dt2))
         {
-          //TODO: report type check error
-          mError = true;
+          stringstream m;
+          m << dtToString(dt) << " type is not compatible with "
+            << dtToString(dt2) << " type for arithmetic operations";
+          throwError(m.str());
           return false;
         }
         doOperation(op1, op2, thisOp, dt == FLOAT, dt2 == FLOAT);
@@ -618,7 +649,10 @@ bool Parser::relation(datatype& dt)
     {
       if(!equivalentTypes(dt1, dt2) || mArrayID)
       {
-        //TODO: report type check error
+        stringstream m;
+        m << dtToString(dt1) << " type is not compatible with "
+          << dtToString(dt2) << " type for conditional operations";
+        throwError(m.str());
         return false;
       }
       int op2 = mReg;
@@ -654,8 +688,10 @@ bool Parser::relation2(datatype& dt, const char*& op)
       {
         if(!relationalOpCompatible(dt, dt2))
         {
-          //TODO: report type check error
-          mError = true;
+          stringstream m;
+          m << dtToString(dt) << " type is not compatible with "
+            << dtToString(dt2) << " type for conditional operations";
+          throwError(m.str());
           return false;
         }
         doOperation(op1, op2, thisOp);
@@ -679,8 +715,10 @@ bool Parser::arithop(datatype& dt)
     {
       if(!equivalentTypes(dt1, dt2) || mArrayID)
       {
-        //TODO: report type check error
-        mError = true;
+        stringstream m;
+        m << dtToString(dt1) << " type is not compatible with "
+          << dtToString(dt2) << " type for arithmetic operations";
+        throwError(m.str());
         return false;
       }
       int op2 = mReg;
@@ -708,8 +746,10 @@ bool Parser::arithop2(datatype& dt, const char*& op)
       {
         if(!arithOpCompatible(dt, dt2))
         {
-          //TODO: report type check error
-          mError = true;
+          stringstream m;
+          m << dtToString(dt) << " type is not compatible with "
+            << dtToString(dt2) << " type for arithmetic operations";
+          throwError(m.str());
           return false;
         }
         doOperation(op1, op2, op);
@@ -724,7 +764,6 @@ bool Parser::arithop2(datatype& dt, const char*& op)
 bool Parser::expression(datatype& dt)
 {
   datatype dt1, dt2;
-  //TODO: do something with not
   bool haveNot = nextTokenIs(Token::NOT);
   if(arithop(dt1))
   {
@@ -734,8 +773,10 @@ bool Parser::expression(datatype& dt)
     {
       if(!equivalentTypes(dt1, dt2) || mArrayID)
       {
-        //TODO: report type check error
-        mError = true;
+        stringstream m;
+        m << dtToString(dt) << " type is not compatible with "
+          << dtToString(dt2) << " type";
+        throwError(m.str());
         return false;
       }
       int op2 = mReg;
@@ -747,7 +788,7 @@ bool Parser::expression(datatype& dt)
       int result = mReg++;
       mGenFile << "\tR[" << mReg << "] = ~R[" << result << "];" << endl;
     }
-    return !mError;
+    return true;
   }
   return false;
 }
@@ -767,9 +808,9 @@ bool Parser::expression2(datatype& dt, const char*& op)
       int op2 = mReg;
       if(!lastexpression)
       {
-        if(!bitwiseOpCompatible(dt, dt2))
+        if(!(dt == dt2 && dt == INTEGER))
         {
-          //TODO: report type check error
+          throwError("operands for bitwise operations must be integers");
           return false;
         }
         doOperation(op1, op2, thisOp);
@@ -793,7 +834,7 @@ bool Parser::destination(SymbolTableIt& it, int& index,  bool& global)
       {
         if(dt != INTEGER)
         {
-          //TODO: report type error
+          throwError("array indexes must be integers");
           return false;
         }
         if(!nextTokenIs(Token::CLOSESQUARE))
@@ -803,8 +844,9 @@ bool Parser::destination(SymbolTableIt& it, int& index,  bool& global)
     }
     if(!lookupSymbol(id, it, global))
     {
-      //TODO: report error symbol not found
-      mError = true;
+      stringstream m;
+      m << "symbol \"" << id << "\" not found";
+      throwError(m.str());
       return false;
     }
     return true;
@@ -818,62 +860,68 @@ bool Parser::assignmentstatement()
   SymbolTableIt s;
   bool global;
   int index = -1;
-  if(destination(s, index, global))
+  if(destination(s, index, global) || mError)
   {
-    if(nextTokenIs(Token::ASSIGNMENT) && expression(dt))
+    if(!nextTokenIs(Token::ASSIGNMENT))
     {
-      if(!equivalentTypes(s->second.getDataType(), dt))
-      {
-        //TODO: throw type error
-        cout << "assignment: types do not match!" << endl;
-        return false;
-      }
+      stringstream m;
+      m << "expected \":=\" instead of " << mTok.getString();
+      throwError(m.str());
+      return false;
+    }
+    if(!expression(dt))
+    {
+      throwError("unrecognized expression in assignment");
+      return false;
+    }
 
-      // assignment to function means return from function
-      if(!strcmp(s->second.getID(), currentFunction()))
+    if(!equivalentTypes(s->second.getDataType(), dt))
+    {
+      throwError("invalid assignment; types are not compatible");
+      return false;
+    }
+
+    // assignment to function means return from function
+    if(!strcmp(s->second.getID(), currentFunction()))
+    {
+      // clean up the stack
+      SymbolTableIt it = localSymbolTable().begin();
+      int numLocals = 0;
+      for(; it != localSymbolTable().end(); ++it)
       {
-        // clean up the stack
-        SymbolTableIt it = localSymbolTable().begin();
-        int numLocals = 0;
-        for(; it != localSymbolTable().end(); ++it)
+        SymbolType st = it->second.getSymbolType();
+        structuretype structureType = st.getStructureType();
+        // only clean up our own variables, not parameters
+        // parameters have a negative offset address
+        int addr = it->second.getAddr();
+        if(addr > 0)
         {
-          SymbolType st = it->second.getSymbolType();
-          structuretype structureType = st.getStructureType();
-          // only clean up our own variables, not parameters
-          // parameters have a negative offset address
-          int addr = it->second.getAddr();
-          if(addr > 0)
-          {
-            if((structureType == SCALAR || structureType == FUNCTION))
-              numLocals++;
-            else if(structureType == ARRAY)
-              numLocals += st.getSize();
-          }
+          if((structureType == SCALAR || structureType == FUNCTION))
+            numLocals++;
+          else if(structureType == ARRAY)
+            numLocals += st.getSize();
         }
-        if(numLocals > 0)
-          mGenFile << "\tR[SP] = R[SP] - " << numLocals << ";" << endl;
-
-        calleeEnd();
       }
-      else
-      {
-        int result = mReg;
-        int addr = s->second.getAddr();
-        getMemoryLocation(addr, global);
-        int addrReg = mReg;
-        if(index != -1)
-          mGenFile << "\tR[" << addrReg << "] = R[" << addrReg << "] "
-                   << (addr < 0 ? '-' : '+') << " R[" << index << "];" << endl;
+      if(numLocals > 0)
+        mGenFile << "\tR[SP] = R[SP] - " << numLocals << ";" << endl;
 
-        mGenFile << "\tMM[R[" << addrReg << "]] = R[" << result << "];" << endl;
-      }
-
-      return true;
+      calleeEnd();
+      mHaveReturn[mLevel] = true;
     }
     else
     {
-      //TODO: throw assignment error
+      int result = mReg;
+      int addr = s->second.getAddr();
+      getMemoryLocation(addr, global);
+      int addrReg = mReg;
+      if(index != -1)
+        mGenFile << "\tR[" << addrReg << "] = R[" << addrReg << "] "
+                 << (addr < 0 ? '-' : '+') << " R[" << index << "];" << endl;
+
+      mGenFile << "\tMM[R[" << addrReg << "]] = R[" << result << "];" << endl;
     }
+
+    return true;
   }
   return false;
 }
@@ -893,10 +941,13 @@ bool Parser::functionbody(const char* id)
   int addr = 3;
   SymbolType st;
   bool global = false;
-  while(declaration(addr, st, global))
+  while(declaration(addr, st, global) || mError)
   {
+    mError = false;
     if(!nextTokenIs(Token::SEMICOLON))
-      return false;
+    {
+      throwError("expected ;");
+    }
     else if(!global)
     {
       if(st.getStructureType() == ARRAY)
@@ -930,13 +981,25 @@ bool Parser::functionbody(const char* id)
       }
     }
 
-    while(statement())
+    while(statement() || mError)
     {
+      mError = false;
       if(!nextTokenIs(Token::SEMICOLON))
+      {
+        throwError("expected ;");
         return false;
+      }
     }
     if(nextTokenIs(Token::END) && nextTokenIs(Token::FUNCTION))
     {
+      if(!mHaveReturn[mLevel])
+      {
+        stringstream m;
+        m << "expected return from " << id << " function";
+        throwError(m.str());
+        return false;
+      }
+      mHaveReturn.pop_back();
       mFunctionNames.pop_back();
       return true;
     }
@@ -958,8 +1021,7 @@ bool Parser::parameterlist(vector<SymbolType>& params, int addr/*=-1*/)
     params.push_back(st);
     if(nextTokenIs(Token::COMMA) && !parameterlist(params,addr))
     {
-      //TODO: error reporting
-      mError = true;
+      throwError("syntax error in parameter list");
       return false;
     }
     return true;
@@ -994,6 +1056,7 @@ bool Parser::functionheader(int addr, datatype dt, const char*& id,
           Symbol(id, SymbolType(FUNCTION, dt, 0, params), addr);
 
       mFunctionNames.push_back(const_cast<char*>(id));
+      mHaveReturn.push_back(false);
       mGenFile << id << ":" << endl;
       calleeBegin();
       mGenFile << "\tgoto " << id << "_begin;" << endl;
@@ -1030,7 +1093,7 @@ bool Parser::parse()
   initialize();
 
   datatype dt;
-  bool success = typemark(dt) && functiondecl(0, dt, false);
+  bool parseSuccess = typemark(dt) && functiondecl(0, dt, false);
 
   mGenFile << "_main:" << endl;
 
@@ -1052,5 +1115,5 @@ bool Parser::parse()
 
   mGenFile.close();
 
-  return true;
+  return parseSuccess && mErrorCount == 0;
 }
