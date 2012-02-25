@@ -196,14 +196,14 @@ bool Parser::lookupSymbol(string id, SymbolTableIt& it, bool& global)
   return (it != mGlobalSymbols.end());
 }
 
-void Parser::getMemoryLocation(int fpOffset, bool hasIndex)
+void Parser::getMemoryLocation(int fpOffset, bool global/*= false*/)
 {
   mReg++;
-  mGenFile << "\tR[" << mReg << "] = " << fpOffset << ";" << endl 
-           << "\tR[" << mReg << "] = R[" << mReg << "] + R[FP];" << endl;
-  if(hasIndex)
-    mGenFile << "\tR[" << mReg << "] = R["
-             << mReg << "] + R[" << mReg - 1 << "];" << endl;
+  mGenFile << "\tR[" << mReg << "] = " << fpOffset << ";" << endl;
+
+  if(!global)
+    mGenFile << "\tR[" << mReg << "] = R[" << mReg << "] + R[FP];" << endl;
+
 }
 
 void Parser::doOperation(int op1, int op2, const char* op, 
@@ -247,8 +247,11 @@ bool Parser::typemark(datatype& dt)
   return true;
 }
 
-bool Parser::variabledecl(int addr, datatype dt, SymbolType& st)
+bool Parser::variabledecl(int addr, datatype dt, SymbolType& st,
+    bool global/*= false*/)
 {
+  SymbolTable& table = global ? mGlobalSymbols : localSymbolTable();
+  int tmpAddr = global ? mCurrentAddr++ : addr;
   if(nextTokenIs(Token::IDENTIFIER))
   {
     const char* id = mTok.getString();
@@ -263,25 +266,24 @@ bool Parser::variabledecl(int addr, datatype dt, SymbolType& st)
       if(nextTokenIs(Token::CLOSESQUARE))
       {
         st = SymbolType(ARRAY, dt, size);
-        localSymbolTable()[id] = Symbol(id, st, addr);
+        table[id] = Symbol(id, st, tmpAddr);
         return true;
       }
       return false;
     }
 
     st = SymbolType(SCALAR, dt);
-    localSymbolTable()[id] = Symbol(id, st, addr);
+    table[id] = Symbol(id, st, tmpAddr);
     return true;
   }
   return false;
 }
 
-bool Parser::declaration(int addr, SymbolType& st)
+bool Parser::declaration(int addr, SymbolType& st, bool& global)
 {
-  bool global = false;
   if(nextTokenIs(Token::GLOBAL))
   {
-    if(mLevel == 1)
+    if(mLevel == 0)
       global = true;
     else
     {
@@ -291,7 +293,7 @@ bool Parser::declaration(int addr, SymbolType& st)
 
   datatype dt;
   if(typemark(dt))
-    return functiondecl(addr, dt, global) || variabledecl(addr, dt, st);
+    return functiondecl(addr, dt, global) || variabledecl(addr, dt, st, global);
   return false;
 }
 
@@ -453,7 +455,6 @@ bool Parser::name(bool& hasIndex)
       //TODO: throw type check error
       return false;
     }
-    mGenFile << "R[" << ++mReg << "] = R[" << mReg - 1 << "];" << endl;
     hasIndex = true;
 
     if(nextTokenIs(Token::CLOSESQUARE))
@@ -475,6 +476,7 @@ bool Parser::factor(datatype& dt)
      return false;
   }
 
+  bool negate = nextTokenIs(Token::MINUS);
   if(nextTokenIs(Token::IDENTIFIER))
   {
     const char* id = mTok.getString();
@@ -483,6 +485,7 @@ bool Parser::factor(datatype& dt)
     bool isFunctionCall = functioncall(regs);
     if(isFunctionCall || name(hasIndex))
     {
+      int idx = mReg;
       SymbolTableIt it;
       bool global = false;
       if(!lookupSymbol(id, it, global))
@@ -490,19 +493,23 @@ bool Parser::factor(datatype& dt)
         //TODO: throw symbol not found error
         return false;
       }
+      int addr = it->second.getAddr();
       dt = it->second.getDataType();
 
-      if(global)
-      {
-        mReg++;
-        mGenFile << "\tR[" << mReg << "] = " << it->second.getAddr() << ";"
-                 << endl;
-      }
-      else
-        getMemoryLocation(it->second.getAddr(), hasIndex);
+      getMemoryLocation(addr, global);
+
+      // if we were given an index, we need to add the offset
+      if(hasIndex)
+        mGenFile << "\tR[" << mReg << "] = R[" << mReg << "] "
+                 << (addr < 0 ? '-' : '+') << " R[" << idx << "];" << endl;
 
       mReg++;
       mGenFile << "\tR[" << mReg << "] = MM[R[" << mReg - 1 << "]];" << endl;
+      if(negate)
+      {
+        mReg++;
+        mGenFile << "\tR[" << mReg << "] = -1*R[" << mReg - 1 << "];" << endl;
+      }
 
       if(isFunctionCall)
       {
@@ -513,79 +520,27 @@ bool Parser::factor(datatype& dt)
       // hack to allow arrays as expression
       if(it->second.getStructureType() == ARRAY && !hasIndex)
         mArrayID = const_cast<char*>(id);
-
-      return true;
     }
   }
-
-  if(nextTokenIs(Token::MINUS))
-  {
-    //TODO: do something with minus
-    if(nextTokenIs(Token::IDENTIFIER))
-    {
-      const char* id = mTok.getString();
-      bool hasIndex;
-      if(name(hasIndex))
-      {
-        SymbolTableIt it;
-        bool global;
-        if(!lookupSymbol(id, it, global))
-        {
-          //TODO: throw symbol not found error
-          return false;
-        }
-        dt = it->second.getDataType();
-        if(it->second.getStructureType() == ARRAY && !hasIndex)
-        {
-          //TODO: error, need index here
-          return false;
-        }
-        getMemoryLocation(it->second.getAddr(), hasIndex);
-        mReg++;
-        mGenFile << "\tR[" << mReg << "] = MM[R[" << mReg - 1 << "]];"
-                 << endl;
-      }
-    }
-    else if(nextTokenIs(Token::NUMBER))
-    {
-      dt = getNumberType();
-      if(dt == INTEGER)
-        mGenFile << "\tR[" << ++mReg << "] = ";
-      else
-        mGenFile << "\tTMP_FLOAT1 = ";
-      mGenFile << mTok.getString() << ";" << endl;
-      if(dt == FLOAT)
-        mGenFile << "\tmemcpy(&R[" << ++mReg 
-                 << "], &TMP_FLOAT1, sizeof(float));" << endl;
-    }
-    else
-      return false;
-
-    mGenFile << "\tR[" << ++mReg << "] = 0;" << endl
-             << "\tR[" << ++mReg << "] = R[" << mReg - 1
-             << "] - R[" << mReg - 2 << "];" << endl;
-    return true;
-  }
-
-  if(nextTokenIs(Token::NUMBER))
+  else if(nextTokenIs(Token::NUMBER))
   {
     dt = getNumberType();
     if(dt == INTEGER)
       mGenFile << "\tR[" << ++mReg << "] = ";
     else
       mGenFile << "\tTMP_FLOAT1 = ";
-    mGenFile << mTok.getString() << ";" << endl;
+    mGenFile << (negate ? "-" : "") << mTok.getString() << ";" << endl;
     if(dt == FLOAT)
       mGenFile << "\tmemcpy(&R[" << ++mReg << "], &TMP_FLOAT1, sizeof(float));"
                << endl;
   }
-  else if(nextTokenIs(Token::STRING))
+  else if(!negate && nextTokenIs(Token::STRING))
   {
     dt = STRING;
     mGenFile << "\tR[" << ++mReg << "] = (int)\"" << mTok.getString() 
              << "\";" << endl;
   }
-  else if(nextTokenIs(Token::TRUE) || nextTokenIs(Token::FALSE))
+  else if(!negate && (nextTokenIs(Token::TRUE) || nextTokenIs(Token::FALSE)))
   {
     dt = BOOLEAN;
     mGenFile << "\tR[" << ++mReg << "] = "
@@ -593,7 +548,10 @@ bool Parser::factor(datatype& dt)
              << endl;
   }
   else
+  {
+    //TODO: report syntax error
     return false;
+  }
   return true;
 }
 
@@ -784,6 +742,11 @@ bool Parser::expression(datatype& dt)
       doOperation(op1, op2, op);
     }
     dt = dt1;
+    if(haveNot and dt == INTEGER)
+    {
+      int result = mReg++;
+      mGenFile << "\tR[" << mReg << "] = ~R[" << result << "];" << endl;
+    }
     return !mError;
   }
   return false;
@@ -818,7 +781,7 @@ bool Parser::expression2(datatype& dt, const char*& op)
   return false;
 }
 
-bool Parser::destination(SymbolTableIt& it)
+bool Parser::destination(SymbolTableIt& it, int& index,  bool& global)
 {
   datatype dt;
   if(nextTokenIs(Token::IDENTIFIER))
@@ -835,9 +798,9 @@ bool Parser::destination(SymbolTableIt& it)
         }
         if(!nextTokenIs(Token::CLOSESQUARE))
           return false;
+        index = mReg;
       }
     }
-    bool global;
     if(!lookupSymbol(id, it, global))
     {
       //TODO: report error symbol not found
@@ -853,45 +816,64 @@ bool Parser::assignmentstatement()
 {
   datatype dt;
   SymbolTableIt s;
-  if(destination(s) && nextTokenIs(Token::ASSIGNMENT) && expression(dt))
+  bool global;
+  int index = -1;
+  if(destination(s, index, global))
   {
-    if(!equivalentTypes(s->second.getDataType(), dt))
+    if(nextTokenIs(Token::ASSIGNMENT) && expression(dt))
     {
-      //TODO: throw type error
-      return false;
-    }
-
-    if(!strcmp(s->second.getID(), currentFunction()))
-    {
-      // clean up the stack
-      SymbolTableIt it;
-      int numLocals = 0;
-      for(it = localSymbolTable().begin(); it != localSymbolTable().end(); ++it)
+      if(!equivalentTypes(s->second.getDataType(), dt))
       {
-        SymbolType st = it->second.getSymbolType();
-        structuretype structureType = st.getStructureType();
-        // only clean up our own variables, not parameters
-        // parameters have a negative offset address
-        if((structureType == SCALAR || structureType == FUNCTION) &&
-            it->second.getAddr() > 0)
-          numLocals++;
-        else if(structureType == ARRAY)
-          numLocals += st.getSize();
+        //TODO: throw type error
+        cout << "assignment: types do not match!" << endl;
+        return false;
       }
-      if(numLocals > 0)
-        mGenFile << "\tR[SP] = R[SP] - " << numLocals << ";" << endl;
 
-      calleeEnd();
+      // assignment to function means return from function
+      if(!strcmp(s->second.getID(), currentFunction()))
+      {
+        // clean up the stack
+        SymbolTableIt it = localSymbolTable().begin();
+        int numLocals = 0;
+        for(; it != localSymbolTable().end(); ++it)
+        {
+          SymbolType st = it->second.getSymbolType();
+          structuretype structureType = st.getStructureType();
+          // only clean up our own variables, not parameters
+          // parameters have a negative offset address
+          int addr = it->second.getAddr();
+          if(addr > 0)
+          {
+            if((structureType == SCALAR || structureType == FUNCTION))
+              numLocals++;
+            else if(structureType == ARRAY)
+              numLocals += st.getSize();
+          }
+        }
+        if(numLocals > 0)
+          mGenFile << "\tR[SP] = R[SP] - " << numLocals << ";" << endl;
+
+        calleeEnd();
+      }
+      else
+      {
+        int result = mReg;
+        int addr = s->second.getAddr();
+        getMemoryLocation(addr, global);
+        int addrReg = mReg;
+        if(index != -1)
+          mGenFile << "\tR[" << addrReg << "] = R[" << addrReg << "] "
+                   << (addr < 0 ? '-' : '+') << " R[" << index << "];" << endl;
+
+        mGenFile << "\tMM[R[" << addrReg << "]] = R[" << result << "];" << endl;
+      }
+
+      return true;
     }
     else
     {
-      int result = mReg;
-      getMemoryLocation(s->second.getAddr(), false);
-      int destAddr = mReg;
-      mGenFile << "\tMM[R[" << destAddr << "]] = R[" << result << "];" << endl;
+      //TODO: throw assignment error
     }
-
-    return true;
   }
   return false;
 }
@@ -910,17 +892,20 @@ bool Parser::functionbody(const char* id)
   // 2 is function address
   int addr = 3;
   SymbolType st;
-  while(declaration(addr, st))
+  bool global = false;
+  while(declaration(addr, st, global))
   {
     if(!nextTokenIs(Token::SEMICOLON))
       return false;
-    else
+    else if(!global)
     {
       if(st.getStructureType() == ARRAY)
         addr += st.getSize();
       else
         addr++;
     }
+    global = false;
+    st = SymbolType();
   }
   if(nextTokenIs(Token::BEGIN))
   {

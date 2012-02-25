@@ -14,9 +14,6 @@ class Scanner
     bool initialize();
     bool scan(Token& tok);
     int getLineNumber() { return mLineNumber; }
-    int numErrors() { return mErrors.size(); }
-
-    void printErrors();
 
     enum charclass
     {
@@ -52,13 +49,13 @@ class Scanner
       std::string msg;
     };
 
-    void addIllegalCharacterError(char c);
+    void printError(error&);
+    void printIllegalCharacterError(char c);
 
     FILE* mFile;
     std::string mFilename;
     int mLineNumber;
     std::map<std::string, Token::tokentype> mStrings;
-    std::vector<error> mErrors;
 
     typedef std::map<std::string, Token::tokentype>::iterator StringIt;
 };

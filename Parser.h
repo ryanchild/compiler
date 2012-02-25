@@ -154,13 +154,13 @@ class Parser
     SymbolTable& localSymbolTable() { return mLocalSymbols[mLevel]; }
     char* currentFunction() { return mFunctionNames[mLevel]; }
     // after returning, mReg is the register with the desired address
-    void getMemoryLocation(int fpOffset, bool hasIndex);
+    void getMemoryLocation(int, bool global=false);
     void doOperation(int, int, const char* op, bool fp1 = false,
        bool fp2 = false);
 
     bool typemark(datatype&);
-    bool variabledecl(int, datatype, SymbolType&);
-    bool declaration(int, SymbolType&);
+    bool variabledecl(int, datatype, SymbolType&, bool global=false);
+    bool declaration(int, SymbolType&, bool& global);
     bool ifstatement();
     bool loopstatement();
     bool functioncall(std::vector<int>&);
@@ -175,7 +175,7 @@ class Parser
     bool arithop2(datatype&, const char*&);
     bool expression(datatype&);
     bool expression2(datatype&, const char*&);
-    bool destination(SymbolTableIt& it);
+    bool destination(SymbolTableIt& it, int& index, bool& global);
     bool assignmentstatement();
     bool statement();
     bool functionbody(const char*);

@@ -65,21 +65,17 @@ bool Scanner::initialize()
   return mFile != NULL;
 }
 
-void Scanner::printErrors()
+void Scanner::printError(error& err)
 {
-  for(vector<error>::iterator it(mErrors.begin()); it != mErrors.end(); ++it)
-  {
-    error err = *it;
-    cout << "Line " << err.lineNum << ": " << err.msg << endl;
-  }
+  cout << "Line " << err.lineNum << ": " << err.msg << endl;
 }
 
-void Scanner::addIllegalCharacterError(char c)
+void Scanner::printIllegalCharacterError(char c)
 {
   ostringstream msg;
   msg << "unrecognized character: " << c << endl;
   error err = {mLineNumber, msg.str()};
-  mErrors.push_back(err);
+  printError(err);
 }
 
 bool Scanner::scan(Token& tok)
@@ -158,7 +154,7 @@ bool Scanner::scan(Token& tok)
         if(c != '=')
         {
           ungetc(c,mFile);
-          addIllegalCharacterError('!');
+          printIllegalCharacterError('!');
         }
         else
           strit = mStrings.find("!=");
@@ -233,7 +229,7 @@ bool Scanner::scan(Token& tok)
           ostringstream msg;
           msg << "illegal string \"" << oss.str() << "\"" << endl;
           error err = {mLineNumber, msg.str()};
-          mErrors.push_back(err);
+          printError(err);
         }
         else
         {
@@ -248,7 +244,7 @@ bool Scanner::scan(Token& tok)
       }
 
       case OTHER:
-        addIllegalCharacterError(c);
+        printIllegalCharacterError(c);
         break;
 
       default: break;

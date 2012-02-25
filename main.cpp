@@ -34,18 +34,7 @@ int main(int argc, char** argv)
 
   Parser p(&s, genfile.c_str());
   if(!p.parse())
-  {
     cout << "error parsing " << filename << endl;
-
-    int ne = s.numErrors();
-    if(ne > 0)
-    {
-      const char* plural = ne == 1 ? "" : "s";
-      cout << endl << ne << " fatal error" << plural << " found. Aborting..." 
-        << endl;
-      s.printErrors();
-    }
-  }
   else
   {
     string cmd = "gcc " + genfile + " runtime.c -lm";
