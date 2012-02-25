@@ -1,4 +1,9 @@
 Author: Ryan Child
-Description: This is a really simple compiler I am writing for EECE 683, Compiler Theory, at the University of Cincinnati, Winter Quarter 2012.
+Description: This compiler compiles programs written in the language specified in the file “project.pdf”, included in this package.  It is written in C/C++.  The scanner sequentially fetches tokens one at a time while the parser performs syntax analysis, lexical analysis, code generation and lexical / syntax error reporting.
 
-Language specification is in file project.pdf
+Build instructions:
+Verify maketools is installed and type “make” from the project directory.  This will build an executable called “compiler”
+To build on x64_64 architectures, the following additional packages must be installed:
+libc6-dev-i386
+lib32stdc++6
+g++-multilib
