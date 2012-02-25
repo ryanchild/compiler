@@ -88,9 +88,9 @@ begin
   dump := putString("How many fibonacci numbers to print? ");
   i2 := getInt();
   for i1 := 0 i1 < i2
-    i1 := i1 + 1;
     dump := putInt(fibonacci(i1));
     dump := putString(" ");
+    i1 := i1 + 1;
   end for;
 
   // nested loop test
