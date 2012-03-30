@@ -406,24 +406,28 @@ bool Parser::functioncall(vector<int>& regs)
   vector<SymbolType> args;
   if(nextTokenIs(Token::OPENPAREN))
   {
+    SymbolTableIt it;
+    bool global;
+    if(!lookupSymbol(id, it, global) ||
+        it->second.getStructureType() != FUNCTION)
+    {
+      mPreScanned = true;
+      return false;
+    }
+
     argumentlist(args, regs);
     if(nextTokenIs(Token::CLOSEPAREN))
     {
-      SymbolTableIt it;
-      bool global;
-      if(lookupSymbol(id, it, global))
+      vector<SymbolType> params;
+      it->second.getSymbolType().getParams(params);
+      if(params != args)
       {
-        vector<SymbolType> params;
-        it->second.getSymbolType().getParams(params);
-        if(params != args)
-        {
-          std::stringstream m;
-          m << "argument types do match function signature for " << id;
-          throwError(m.str());
-          return false;
-        }
-        return true;
+        std::stringstream m;
+        m << "argument types do match function signature for " << id;
+        throwError(m.str());
+        return false;
       }
+      return true;
     }
   }
   return false;
